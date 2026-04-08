@@ -15,15 +15,25 @@ All messages flow into one Redpanda topic (`fleet-events`) with the original Sol
 
 The `*` → `%` substitution is the direct translation between SMF wildcards and SQL LIKE patterns.
 
-### Three-tier structure
+### Four-tier structure
 
 ```
-fleet_all_raw  (SOURCE — reads fleet-events, all fields nullable)
-  ├── fleet_telemetry_raw  (MV — LIKE 'fleet/telemetry/%')
-  ├── fleet_events_raw     (MV — LIKE 'fleet/events/%')
-  └── fleet_commands_raw   (MV — LIKE 'fleet/commands/%')
+Solace Event Portal  (design-time catalog — drives code generation)
+  └── generate_mvs.py → config/risingwave/init.sql
         ↓
-Analytics MVs build on routing MVs:
+fleet_all_raw  (SOURCE — reads fleet-events, all fields nullable)
+  ├── fleet_telemetry_raw  (static routing MV — LIKE 'fleet/telemetry/%')
+  ├── fleet_events_raw     (static routing MV — LIKE 'fleet/events/%')
+  └── fleet_commands_raw   (static routing MV — LIKE 'fleet/commands/%')
+        ↓
+EP-generated MVs (one per event version — read directly from fleet_all_raw):
+  ├── vehicle_speed           (LIKE 'fleet/telemetry/%/metrics/speed')
+  ├── vehicle_fuel_level      (LIKE 'fleet/telemetry/%/metrics/fuel_level')
+  ├── vehicle_engine_temp     (LIKE 'fleet/telemetry/%/metrics/engine_temp')
+  ├── vehicle_alert_high      (LIKE 'fleet/events/%/alerts/high')
+  └── … (one MV per event version in "Fleet Operations" domain)
+        ↓
+Analytics MVs (static — build on routing MVs):
   ├── vehicle_speeds          (speed messages only)
   ├── high_severity_alerts    (alerts/high)
   ├── vehicle_speed_5min_avg  (TUMBLE window — no Solace equivalent)
@@ -31,6 +41,43 @@ Analytics MVs build on routing MVs:
 ```
 
 MVs extend beyond topic filtering — windowed aggregations and stream-stream JOINs have no Solace equivalent.
+
+EP-generated MVs and static routing MVs both read from `fleet_all_raw` directly. EP-generated MVs use fine-grained LIKE patterns derived from event delivery descriptors; routing MVs use broad patterns for analytics queries that span an entire message family.
+
+---
+
+## Event Portal as Source of Truth
+
+`generate_mvs.py` queries the Solace Event Portal REST API and regenerates `config/risingwave/init.sql` from the event catalog. This replaces hand-crafted SQL for the per-event-type views.
+
+### How conversion works
+
+Each EP event version carries a `deliveryDescriptor` with `addressLevels`. The script converts those levels directly to a SQL `LIKE` pattern:
+
+| EP `addressLevelType` | SQL LIKE token |
+|---|---|
+| `literal` (e.g. `"speed"`) | exact string (e.g. `speed`) |
+| `variable` (e.g. `"vehicle_id"`) | `%` wildcard |
+
+Example: the `vehicle-speed` event version has address levels `fleet / telemetry / {vehicle_id} / metrics / speed`, which becomes `WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/speed'`.
+
+The script also reads the linked JSON Schema to select only the columns relevant to each event type, keeping each MV lean.
+
+### Adding a new event type
+
+1. Create or update the event in EP (`create_ep_objects.sh` or EP UI)
+2. Run `python3 generate_mvs.py`
+3. Re-apply: `psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql`
+
+The new MV appears automatically — no SQL editing required.
+
+### Dry run
+
+```bash
+python3 generate_mvs.py --dry-run
+```
+
+Prints the generated SQL to stdout without writing the file.
 
 ---
 

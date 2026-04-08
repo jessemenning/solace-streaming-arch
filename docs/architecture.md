@@ -18,6 +18,18 @@ database layer (RisingWave materialized views).
 ## Data Flow
 
 ```
+Solace Event Portal  (cloud catalog — design-time, not in the live data path)
+  Domain: Fleet Operations
+  Schemas: FleetTelemetryMetric, FleetAlert, FleetCommand (JSON Schema draft-07)
+  Events: vehicle-speed, vehicle-fuel-level, vehicle-engine-temp, ...
+  Applications: fleet-generator (produces), risingwave-analytics (consumes), fleet-agent
+     │
+     │  create_ep_objects.sh   → populates EP domain, schemas, events, apps
+     │  generate_mvs.py        → reads EP catalog → writes config/risingwave/init.sql
+     ▼
+config/risingwave/init.sql   (auto-generated — one MV per EP event version)
+
+
 Fleet vehicles
      │  native Python SDK  (solace-pubsubplus)
      ▼
@@ -28,23 +40,60 @@ Solace Platform Event Broker   port 55555 (SMF)
      │  Kafka Connect  (Solace Source Connector)
      ▼
 Redpanda (Kafka-compatible log)
-  Topics:
-    fleet-telemetry   (6 partitions, infinite retention)
-    fleet-events      (6 partitions, infinite retention)
-    fleet-commands    (3 partitions, infinite retention)
+  Topic: fleet-events  (single topic, all message types, infinite retention)
   Every message payload includes:  solace_topic  (exact original topic)
      │
      │  Kafka protocol  (bootstrap: redpanda:9092)
      ▼
 RisingWave Streaming SQL Engine   port 4566 (Postgres wire protocol)
-  Sources: fleet_telemetry_raw, fleet_events_raw, fleet_commands_raw
-  Materialized views (incremental, always-up-to-date):
+  Source: fleet_all_raw  (reads fleet-events; all fields nullable)
+  Routing MVs (static — broad-pattern subscriptions):
+    fleet_telemetry_raw           → WHERE solace_topic LIKE 'fleet/telemetry/%'
+    fleet_events_raw              → WHERE solace_topic LIKE 'fleet/events/%'
+    fleet_commands_raw            → WHERE solace_topic LIKE 'fleet/commands/%'
+  EP-generated MVs (one per event version in Fleet Operations domain):
+    vehicle_speed                 → WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/speed'
+    vehicle_fuel_level            → WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/fuel_level'
+    vehicle_alert_high            → WHERE solace_topic LIKE 'fleet/events/%/alerts/high'
+    … (one MV per event version; re-run generate_mvs.py to extend)
+  Analytics MVs (static — aggregation, join, window):
     high_severity_alerts          → replaces fleet/events/*/alerts/high
     vehicle_speed_5min_avg        → 5-min tumbling window (no Solace equivalent)
     alerts_with_context           → stream-stream join (no Solace equivalent)
     vehicles_in_region_boston     → spatial filter (no Solace equivalent)
     …
 ```
+
+---
+
+## Event Portal Integration
+
+Solace Event Portal serves as the **event catalog and schema registry** for this architecture. It is a design-time component — not in the live data path — but it drives code generation for the RisingWave layer.
+
+### Workflow
+
+1. **`create_ep_objects.sh`** — run once (idempotent) to populate the "Fleet Operations" application domain in EP:
+   - 3 JSON Schema draft-07 schemas: `FleetTelemetryMetric`, `FleetAlert`, `FleetCommand`
+   - 10 events with versioned delivery descriptors (topic address levels)
+   - 3 applications (`fleet-generator`, `risingwave-analytics`, `fleet-agent`) with produce/consume relationships wired
+   - Reads `SOLACE_CLOUD_TOKEN` from `.env`
+
+2. **`generate_mvs.py`** — queries the EP catalog and regenerates `config/risingwave/init.sql`:
+   - Paginates through all event versions in the domain
+   - Converts EP delivery descriptor `addressLevels` → SQL `LIKE` patterns (`variable` levels → `%`)
+   - Uses the linked schema's `properties` to select only the relevant columns for each MV
+   - Writes one `CREATE MATERIALIZED VIEW` block per event version
+   - Static analytics MVs (aggregations, JOINs, windows) are appended unchanged
+
+3. **Re-apply to RisingWave** after regenerating:
+   ```bash
+   python3 generate_mvs.py
+   psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
+   ```
+
+### Why this matters
+
+Adding a new event type in EP automatically produces a corresponding RisingWave MV on the next `generate_mvs.py` run. The virtual-topic pattern scales without hand-crafting SQL — the EP catalog *is* the subscription definition.
 
 ---
 
