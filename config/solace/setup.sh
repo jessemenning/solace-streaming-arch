@@ -109,7 +109,31 @@ log "Adding subscriptions to q/redpanda-bridge"
 semp_post "/msgVpns/${VPN}/queues/${ENC_MAIN}/subscriptions" \
   '{"subscriptionTopic": "fleet/>"}'
 
+# ── 7. Kafka Sender (built-in Solace → Redpanda bridge) ─────────────────────
+log "Creating Kafka Sender: redpanda-sender"
+semp_post "/msgVpns/${VPN}/kafkaSenders" "$(cat <<JSON
+{
+  "kafkaSenderName": "redpanda-sender",
+  "bootstrapAddressList": "redpanda:9092",
+  "authenticationScheme": "none",
+  "enabled": true
+}
+JSON
+)"
+
+log "Creating queue binding: q/redpanda-bridge → fleet-events"
+# URL-encode the sender name for the path (no special chars needed here)
+semp_post "/msgVpns/${VPN}/kafkaSenders/redpanda-sender/queueBindings" "$(cat <<JSON
+{
+  "queueBindingName": "q/redpanda-bridge",
+  "remoteTopicName": "fleet-events",
+  "enabled": true
+}
+JSON
+)"
+
 log "Solace setup complete."
 log "  VPN:           ${VPN}"
 log "  User:          streaming-user / default"
 log "  Queue:         q/redpanda-bridge  →  fleet/>"
+log "  Kafka Sender:  redpanda-sender  →  redpanda:9092  →  fleet-events"

@@ -189,43 +189,5 @@ services:
         condition: service_healthy
     restart: "no"
 
-  # ─── Kafka Connect (Solace → Redpanda bridge) ─────────────────────────────
-  kafka-connect:
-    build:
-      context: ./config/kafka-connect
-      dockerfile: Dockerfile
-    container_name: kafka-connect
-    hostname: kafka-connect
-    networks:
-      - streaming-net
-    ports:
-      - "8083:8083"
-    environment:
-      CONNECT_BOOTSTRAP_SERVERS: redpanda:9092
-      CONNECT_REST_PORT: "8083"
-      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
-      CONNECT_GROUP_ID: streaming-poc-connect
-      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
-      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
-      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_PLUGIN_PATH: /usr/share/java
-      CONNECT_LOG4J_ROOT_LOGLEVEL: WARN
-      CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      solace:
-        condition: service_healthy
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - "curl -sf http://localhost:8083/ > /dev/null"
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 90s
+  # Note: Solace → Redpanda bridge is handled by the Solace Kafka Sender
+  # configured in config/solace/setup.sh (no external connector service needed)
