@@ -92,6 +92,89 @@ both of which add latency, cost, and operational complexity.
 
 ---
 
+## Agentic Use Cases
+
+AI agents need the same thing analytical consumers need: **a pre-computed, continuously
+updated view of the world** — without building their own state management. This architecture
+is a natural substrate for agentic systems.
+
+### The core problem for agents
+
+An AI agent that wants to act on real-time events has two options today:
+
+1. **Subscribe to raw topics directly** — the agent receives every individual message and
+   must maintain its own state (counts, averages, join windows, geofence membership) in memory.
+   It cannot survive a restart without replaying history. Its context window fills with raw
+   telemetry instead of distilled signals.
+
+2. **Poll a database or data warehouse** — the agent gets clean aggregated data but with
+   batch latency. It can't react to what's happening *right now*.
+
+This architecture provides a third option: **materialized views as agent-ready context sources.**
+Every view is always current, always pre-aggregated, and queryable via standard SQL.
+The agent asks a question; the answer is already computed.
+
+### Concrete agentic patterns
+
+**Trigger agent on anomaly detection**
+
+Instead of an agent processing every raw telemetry message, it subscribes to a change feed
+from `high_engine_temp_vehicles` or `high_severity_alerts`. The agent only activates when
+an anomaly has already been identified by the streaming layer — its first message is
+*"vehicle_012 has had engine temp above 220°F for 4 consecutive readings,"* not 400 raw
+sensor values to reason across.
+
+**Agent with pre-built situational context**
+
+An agent dispatched to handle an alert can query `alerts_with_context` to immediately
+retrieve the correlated telemetry from the 2 minutes before the event. It doesn't need to
+join streams itself — that join is already materialized and waiting. The agent's first tool
+call returns a complete picture: what happened, what the vehicle was doing, how it compared
+to fleet norms.
+
+**Multi-agent coordination via shared state**
+
+In a multi-agent fleet operations system, different agents handle different responsibilities
+(routing, maintenance scheduling, driver communication). Each queries the same materialized
+views as its shared world model. There is no per-agent state to synchronize — the streaming
+layer is the single source of truth, and every agent sees the same current reality.
+
+**Agent-driven geofence and SLA monitoring**
+
+An operations agent queries `vehicles_in_region_boston` and `vehicle_event_counts_1h` on
+a schedule to detect SLA breaches (e.g., too many high-severity events, vehicle outside
+expected region). Because the views are always current, the agent's polling interval
+determines its response latency — not the speed of a data pipeline.
+
+**Grounding LLM reasoning in real-time data**
+
+When a large language model needs to reason about fleet state, giving it access to
+`vehicle_last_known_position`, `fleet_alert_summary`, and `vehicle_speed_5min_avg` as
+tool outputs grounds its responses in the actual current state of the world. The LLM
+doesn't need to process raw event streams — it queries views that have already distilled
+thousands of messages into the facts that matter.
+
+### Why this architecture is well-suited for agentic workloads
+
+| Agent requirement | How this architecture meets it |
+|---|---|
+| Low-latency context | Views update in seconds, not minutes — agents get current state on demand |
+| Clean signal, not raw noise | Aggregations and joins are pre-computed — agent context is distilled, not voluminous |
+| Stateless agent design | State lives in the streaming layer — agents can restart without replaying history |
+| Consistent world model | Multiple agents query the same views — no per-agent state divergence |
+| Easy to add new views | A new agent capability = a new SQL query, not a new topic hierarchy |
+| Standard interfaces | RisingWave speaks PostgreSQL — any agent framework with a SQL tool can connect |
+
+### Connection to Solace Agent Mesh
+
+In deployments using Solace Agent Mesh (SAM), agents communicate over Solace Platform topics.
+This architecture extends that pattern: the same broker that routes agent-to-agent messages
+also bridges IoT and operational events into Redpanda, where RisingWave computes the
+situational awareness layer that agents query as tools. The result is a unified event fabric
+where real-world events and agent reasoning exist in the same architectural plane.
+
+---
+
 ## Applicability Beyond Fleet Monitoring
 
 The domain (IoT fleet) is illustrative. The pattern applies wherever:
