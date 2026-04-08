@@ -11,7 +11,7 @@
 #   6. Initialize RisingWave schema (sources + materialized views)
 #   7. Start fleet telemetry generator in the background
 #   8. Wait for data to flow through the pipeline
-#   9. Run demo query walkthrough
+#   9. Auto-launch Fleet Operations AI UI
 #
 # Requirements: docker, docker-compose, psql, curl, python3, pip
 # Usage: ./demo/run_demo.sh [--burst] [--skip-build]
@@ -208,14 +208,11 @@ for i in {1..7}; do
   log "  RisingWave fleet_telemetry_raw row count: ${count}"
 done
 
-# ─── STEP 9: Demo queries ─────────────────────────────────────────────────────
-log "=== STEP 9: Running demo queries ==="
-bash demo/demo_queries.sh
-
 log ""
 log "=== Demo complete ==="
 
 # ─── Auto-launch Fleet Operations AI UI ──────────────────────────────────────
+wait_for_url "Fleet Operations AI UI" "http://localhost:8090" "" 60
 if command -v xdg-open &>/dev/null; then
   xdg-open "http://localhost:8090" &>/dev/null &
 elif command -v open &>/dev/null; then
