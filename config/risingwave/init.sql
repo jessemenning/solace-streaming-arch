@@ -14,6 +14,8 @@
 --          └─ fleet_commands_raw    (MV — WHERE solace_topic LIKE 'fleet/commands/%')
 -- =============================================================================
 
+SET timezone = 'UTC';
+
 -- ── Tear down previous objects (safe to re-run) ──────────────────────────────
 DROP MATERIALIZED VIEW IF EXISTS vehicle_event_counts_1h      CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS vehicle_last_known_position  CASCADE;
@@ -147,7 +149,7 @@ SELECT
     COUNT(*)                   AS alert_count,
     COUNT(DISTINCT vehicle_id) AS affected_vehicles
 FROM fleet_events_raw
-WHERE occurred_at > NOW() - INTERVAL '1 HOUR'
+WHERE occurred_at > now() - INTERVAL '1 HOUR'
 GROUP BY severity;
 
 -- ─── 6. Per-vehicle fuel levels ──────────────────────────────────────────────
@@ -203,5 +205,5 @@ SELECT
     severity,
     COUNT(*) AS event_count
 FROM fleet_events_raw
-WHERE occurred_at > NOW() - INTERVAL '1 HOUR'
+WHERE occurred_at > now() - INTERVAL '1 HOUR'
 GROUP BY vehicle_id, severity;
