@@ -1,0 +1,265 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00C895"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="700" fill="#03213B"/>
+
+  <!-- Title -->
+  <text x="600" y="48" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="24" font-weight="bold" fill="#ABFF88">Real-Time Event Intelligence</text>
+
+  <!-- Subtitle -->
+  <text x="600" y="74" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="14" fill="#FFFFFF">Solace Platform + Redpanda + RisingWave</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- PANEL 1 — Data Sources                      -->
+  <!-- ─────────────────────────────────────────── -->
+  <rect x="30" y="100" width="240" height="280" rx="12" fill="#093B5F"/>
+
+  <!-- Icon area -->
+  <rect x="50" y="118" width="200" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+
+  <!-- Vehicle icons (3 rows of small trucks) -->
+  <!-- Row 1: 4 trucks -->
+  <g fill="#ABFF88" opacity="0.9">
+    <!-- truck shape: body + cab + wheels -->
+    <!-- truck 1 -->
+    <rect x="60" y="133" width="28" height="14" rx="2"/>
+    <rect x="76" y="127" width="12" height="8" rx="2"/>
+    <circle cx="65" cy="149" r="4"/>
+    <circle cx="82" cy="149" r="4"/>
+    <!-- truck 2 -->
+    <rect x="102" y="133" width="28" height="14" rx="2"/>
+    <rect x="118" y="127" width="12" height="8" rx="2"/>
+    <circle cx="107" cy="149" r="4"/>
+    <circle cx="124" cy="149" r="4"/>
+    <!-- truck 3 -->
+    <rect x="144" y="133" width="28" height="14" rx="2"/>
+    <rect x="160" y="127" width="12" height="8" rx="2"/>
+    <circle cx="149" cy="149" r="4"/>
+    <circle cx="166" cy="149" r="4"/>
+    <!-- truck 4 -->
+    <rect x="186" y="133" width="28" height="14" rx="2"/>
+    <rect x="202" y="127" width="12" height="8" rx="2"/>
+    <circle cx="191" cy="149" r="4"/>
+    <circle cx="208" cy="149" r="4"/>
+    <!-- Row 2: 4 trucks -->
+    <rect x="60" y="162" width="28" height="14" rx="2"/>
+    <rect x="76" y="156" width="12" height="8" rx="2"/>
+    <circle cx="65" cy="178" r="4"/>
+    <circle cx="82" cy="178" r="4"/>
+
+    <rect x="102" y="162" width="28" height="14" rx="2"/>
+    <rect x="118" y="156" width="12" height="8" rx="2"/>
+    <circle cx="107" cy="178" r="4"/>
+    <circle cx="124" cy="178" r="4"/>
+
+    <rect x="144" y="162" width="28" height="14" rx="2"/>
+    <rect x="160" y="156" width="12" height="8" rx="2"/>
+    <circle cx="149" cy="178" r="4"/>
+    <circle cx="166" cy="178" r="4"/>
+
+    <rect x="186" y="162" width="28" height="14" rx="2"/>
+    <rect x="202" y="156" width="12" height="8" rx="2"/>
+    <circle cx="191" cy="178" r="4"/>
+    <circle cx="208" cy="178" r="4"/>
+    <!-- Row 3: 4 trucks -->
+    <rect x="60" y="191" width="28" height="14" rx="2"/>
+    <rect x="76" y="185" width="12" height="8" rx="2"/>
+    <circle cx="65" cy="207" r="4"/>
+    <circle cx="82" cy="207" r="4"/>
+
+    <rect x="102" y="191" width="28" height="14" rx="2"/>
+    <rect x="118" y="185" width="12" height="8" rx="2"/>
+    <circle cx="107" cy="207" r="4"/>
+    <circle cx="124" cy="207" r="4"/>
+
+    <rect x="144" y="191" width="28" height="14" rx="2"/>
+    <rect x="160" y="185" width="12" height="8" rx="2"/>
+    <circle cx="149" cy="207" r="4"/>
+    <circle cx="166" cy="207" r="4"/>
+
+    <rect x="186" y="191" width="28" height="14" rx="2"/>
+    <rect x="202" y="185" width="12" height="8" rx="2"/>
+    <circle cx="191" cy="207" r="4"/>
+    <circle cx="208" cy="207" r="4"/>
+  </g>
+
+  <!-- Panel 1 Title -->
+  <text x="150" y="232" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Data Sources</text>
+
+  <!-- Panel 1 Body -->
+  <text x="150" y="254" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Fleet of 20 vehicles</text>
+  <text x="150" y="270" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">publishing telemetry,</text>
+  <text x="150" y="286" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">alerts &amp; commands</text>
+  <text x="150" y="306" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">in real time</text>
+
+  <!-- Highlight badge -->
+  <rect x="70" y="350" width="160" height="22" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="150" y="365" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">continuous data stream</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- ARROW 1→2                                   -->
+  <!-- ─────────────────────────────────────────── -->
+  <line x1="272" y1="240" x2="318" y2="240" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <rect x="267" y="250" width="76" height="18" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="305" y="263" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">publish events</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- PANEL 2 — Solace Platform                   -->
+  <!-- ─────────────────────────────────────────── -->
+  <rect x="320" y="100" width="240" height="280" rx="12" fill="#093B5F"/>
+
+  <!-- Icon area -->
+  <rect x="340" y="118" width="200" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+
+  <!-- Network node symbol: central hub + spokes -->
+  <circle cx="450" cy="163" r="14" fill="none" stroke="#00C895" stroke-width="2.5"/>
+  <circle cx="450" cy="163" r="5" fill="#00C895"/>
+  <!-- spokes to satellite nodes -->
+  <line x1="436" y1="150" x2="418" y2="136" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="414" cy="132" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="464" y1="150" x2="482" y2="136" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="486" cy="132" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="436" y1="176" x2="418" y2="190" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="414" cy="194" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="464" y1="176" x2="482" y2="190" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="486" cy="194" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <!-- top and bottom spokes -->
+  <line x1="450" y1="149" x2="450" y2="131" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="450" cy="127" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="450" y1="177" x2="450" y2="195" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="450" cy="199" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+
+  <!-- Panel 2 Title -->
+  <text x="440" y="232" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Solace Platform</text>
+
+  <!-- Panel 2 Body -->
+  <text x="440" y="254" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Routes events to the right</text>
+  <text x="440" y="270" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">consumers — instantly,</text>
+  <text x="440" y="286" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">reliably, at scale</text>
+
+  <!-- Highlight badge -->
+  <rect x="355" y="350" width="168" height="22" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="439" y="365" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">sub-millisecond routing</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- ARROW 2→3                                   -->
+  <!-- ─────────────────────────────────────────── -->
+  <line x1="562" y1="240" x2="608" y2="240" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <rect x="553" y="250" width="88" height="18" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="597" y="263" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">bridge connector</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- PANEL 3 — Redpanda                          -->
+  <!-- ─────────────────────────────────────────── -->
+  <rect x="610" y="100" width="240" height="280" rx="12" fill="#093B5F"/>
+
+  <!-- Icon area -->
+  <rect x="630" y="118" width="200" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+
+  <!-- Database cylinder / log symbol -->
+  <ellipse cx="730" cy="138" rx="42" ry="12" fill="none" stroke="#00C895" stroke-width="2.5"/>
+  <rect x="688" y="138" width="84" height="52" fill="none" stroke="#00C895" stroke-width="2.5"/>
+  <ellipse cx="730" cy="190" rx="42" ry="12" fill="#093B5F" stroke="#00C895" stroke-width="2.5"/>
+  <!-- horizontal lines suggesting log entries -->
+  <line x1="698" y1="152" x2="762" y2="152" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
+  <line x1="698" y1="162" x2="762" y2="162" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
+  <line x1="698" y1="172" x2="762" y2="172" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
+  <line x1="698" y1="182" x2="762" y2="182" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
+
+  <!-- Panel 3 Title -->
+  <text x="730" y="232" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Durable Event Log</text>
+
+  <!-- Subtitle product name -->
+  <text x="730" y="248" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#ABFF88">Redpanda</text>
+
+  <!-- Panel 3 Body -->
+  <text x="730" y="266" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Every event recorded</text>
+  <text x="730" y="282" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">in order. Replay any</text>
+  <text x="730" y="298" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">window of history.</text>
+
+  <!-- Highlight badge -->
+  <rect x="648" y="350" width="162" height="22" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="729" y="365" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">zero data loss</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- ARROW 3→4                                   -->
+  <!-- ─────────────────────────────────────────── -->
+  <line x1="852" y1="240" x2="898" y2="240" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <rect x="845" y="250" width="82" height="18" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="886" y="263" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">streaming SQL</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- PANEL 4 — RisingWave                        -->
+  <!-- ─────────────────────────────────────────── -->
+  <rect x="900" y="100" width="270" height="280" rx="12" fill="#093B5F"/>
+
+  <!-- Icon area -->
+  <rect x="920" y="118" width="230" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+
+  <!-- Magnifier / lens icon with SQL bar chart inside -->
+  <circle cx="1025" cy="163" r="30" fill="none" stroke="#00C895" stroke-width="2.5"/>
+  <!-- small bar chart inside lens -->
+  <rect x="1008" y="172" width="7" height="10" rx="1" fill="#ABFF88" opacity="0.9"/>
+  <rect x="1019" y="162" width="7" height="20" rx="1" fill="#00C895" opacity="0.9"/>
+  <rect x="1030" y="155" width="7" height="27" rx="1" fill="#ABFF88" opacity="0.9"/>
+  <!-- handle -->
+  <line x1="1048" y1="186" x2="1063" y2="201" stroke="#00C895" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Panel 4 Title -->
+  <text x="1035" y="232" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Streaming Intelligence</text>
+
+  <!-- Subtitle product name -->
+  <text x="1035" y="248" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#ABFF88">RisingWave</text>
+
+  <!-- Panel 4 Body -->
+  <text x="1035" y="266" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">SQL queries that update in</text>
+  <text x="1035" y="282" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">real time — no custom code,</text>
+  <text x="1035" y="298" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">no batch delays</text>
+
+  <!-- Highlight badge -->
+  <rect x="920" y="350" width="230" height="22" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="1035" y="365" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">new view = SQL query, not a sprint</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- ARROWS from Panel 4 down to outputs         -->
+  <!-- ─────────────────────────────────────────── -->
+
+  <!-- Vertical from panel 4 bottom center down -->
+  <line x1="1035" y1="382" x2="1035" y2="432" stroke="#00C895" stroke-width="2"/>
+  <!-- Split left to Dashboards -->
+  <line x1="1035" y1="432" x2="710" y2="432" stroke="#00C895" stroke-width="2"/>
+  <line x1="710" y1="432" x2="710" y2="460" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <!-- Split right to AI Agents -->
+  <line x1="1035" y1="432" x2="1035" y2="460" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Arrow label "real-time answers" centered on horizontal branch -->
+  <rect x="826" y="420" width="130" height="18" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="891" y="433" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">real-time answers</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- BOTTOM OUTPUT BOXES                         -->
+  <!-- ─────────────────────────────────────────── -->
+
+  <!-- Dashboards & Alerts box -->
+  <rect x="560" y="460" width="300" height="80" rx="10" fill="#093B5F"/>
+  <text x="710" y="493" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="15" font-weight="bold" fill="#FFFFFF">Dashboards &amp; Alerts</text>
+  <text x="710" y="514" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Live operational views and</text>
+  <text x="710" y="530" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">automated notifications</text>
+
+  <!-- AI Agents box — accent border -->
+  <rect x="880" y="460" width="300" height="80" rx="10" fill="#093B5F" stroke="#00C895" stroke-width="2"/>
+  <text x="1030" y="493" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="15" font-weight="bold" fill="#FFFFFF">AI Agents</text>
+  <text x="1030" y="514" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Query pre-computed views —</text>
+  <text x="1030" y="530" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">answers without raw-stream noise</text>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- BOTTOM CAPTION                              -->
+  <!-- ─────────────────────────────────────────── -->
+  <text x="600" y="590" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="11" fill="#FFFFFF" opacity="0.6">Every layer is independently scalable. The architecture survives any single component failure.</text>
+
+</svg>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -l solace-sink.zip)",
+      "Bash(docker-compose -f /home/jmenning/solace-streaming-arch/docker-compose.yml logs kafka-connect --tail=60)",
+      "Bash(psql -h localhost -p 4566 -U root -d dev -f /home/jmenning/solace-streaming-arch/config/risingwave/init.sql)",
+      "Bash(psql -h localhost -p 4566 -U root -d dev -c ':*)"
+    ]
+  }
+}
