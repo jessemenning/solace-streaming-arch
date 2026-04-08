@@ -31,7 +31,7 @@ turns Solace's dynamic topic space into SQL materialized views — replacing
 
 - Docker and Docker Compose
 - `psql` — `sudo apt-get install -y postgresql-client`
-- Python 3.11+ with pip
+- An Anthropic API key (for the Fleet Agent UI) — copy `demo/agent_demo/.env.template` to `demo/agent_demo/.env` and fill in `ANTHROPIC_API_KEY`
 
 ### Full demo (first run)
 
@@ -40,9 +40,10 @@ chmod +x demo/run_demo.sh demo/demo_queries.sh config/solace/setup.sh config/red
 ./demo/run_demo.sh
 ```
 
-The script builds the Kafka Connect image, starts all services, configures Solace Platform,
-creates the Redpanda topic, deploys the connector, initializes RisingWave, starts the
-20-vehicle fleet generator, and runs a curated 7-query demo walkthrough.
+The script builds images for Kafka Connect, the fleet generator, and the Fleet Agent UI;
+starts all services; configures Solace Platform; creates the Redpanda topic; deploys the connector;
+initializes RisingWave; and runs a curated 7-query demo walkthrough. The fleet generator and
+AI agent UI start automatically as containers — no host Python required.
 
 ### Restart after reboot (skip rebuild)
 
@@ -90,6 +91,7 @@ FROM vehicles_in_region_boston ORDER BY recorded_at DESC LIMIT 10;
 
 | Service | URL | Credentials |
 |---|---|---|
+| **Fleet Operations AI (agentic demo)** | **http://localhost:8090** | — |
 | Solace Platform admin | http://localhost:8180 | admin / admin |
 | Redpanda Console | http://localhost:8888 | — |
 | RisingWave Dashboard | http://localhost:5691 | — |
@@ -156,10 +158,18 @@ solace-streaming-arch/
 │       └── init.sql                  All sources + materialized views (idempotent)
 ├── generator/
 │   ├── generator.py                  20-vehicle fleet telemetry simulator
+│   ├── entrypoint.sh                 Waits for streaming-poc VPN before starting
+│   ├── Dockerfile
 │   └── requirements.txt
 └── demo/
     ├── run_demo.sh                   Full end-to-end orchestrator
-    └── demo_queries.sh               7-query demo walkthrough
+    ├── demo_queries.sh               7-query demo walkthrough
+    └── agent_demo/
+        ├── app.py                    FastAPI backend — Claude + RisingWave tools
+        ├── index.html                Fleet Operations AI single-page UI
+        ├── Dockerfile
+        ├── requirements.txt
+        └── .env.template             Copy to .env and fill in ANTHROPIC_API_KEY
 ```
 
 ---
@@ -181,5 +191,8 @@ It must be `/usr/share/java` (the parent directory), not the plugin subdirectory
 **psql: command not found**  
 `sudo apt-get install -y postgresql-client`
 
-**Generator fails with ModuleNotFoundError**  
-Use `python3.13` (or whichever Python has pip). The system `/usr/bin/python3` may have no packages.
+**Fleet generator not publishing data**  
+Check `docker logs -f fleet-generator`. The container polls SEMP until the `streaming-poc` VPN exists — it will wait if `run_demo.sh` hasn't run Step 3 yet.
+
+**Fleet Agent UI not starting**  
+Ensure `demo/agent_demo/.env` exists with a valid `ANTHROPIC_API_KEY`. Copy from `.env.template` if missing.

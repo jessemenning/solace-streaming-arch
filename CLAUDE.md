@@ -55,7 +55,7 @@ This is what allows a single source schema to handle telemetry, alert, and comma
 
 | Path | Purpose |
 |---|---|
-| `docker-compose.yml` | All five services: solace, redpanda, redpanda-console, risingwave, kafka-connect |
+| `docker-compose.yml` | All seven services: solace, redpanda, redpanda-console, risingwave, kafka-connect, fleet-generator, fleet-agent |
 | `config/solace/setup.sh` | SEMP v2 REST: creates VPN `streaming-poc`, client profile, ACL, user, queue `q/redpanda-bridge`, topic subscription `fleet/>` |
 | `config/redpanda/setup.sh` | Creates `fleet-events` topic via `rpk` |
 | `config/kafka-connect/Dockerfile` | Extends `cp-kafka-connect`; downloads Solace connector JARs at build time |
@@ -64,8 +64,15 @@ This is what allows a single source schema to handle telemetry, alert, and comma
 | `config/risingwave/init.sql` | DROP + CREATE for all sources and MVs; idempotent — safe to re-run |
 | `generator/generator.py` | 20-vehicle fleet simulator; publishes via Solace Platform Python SDK |
 | `generator/requirements.txt` | `solace-pubsubplus` (SDK package name) |
-| `demo/run_demo.sh` | End-to-end orchestrator: build → health checks → configure → init schema → run generator → demo queries |
+| `generator/Dockerfile` | Python 3.11-slim image; copies generator.py + entrypoint.sh |
+| `generator/entrypoint.sh` | Polls SEMP until `streaming-poc` VPN exists, then starts generator; supports `BURST` env var |
+| `demo/run_demo.sh` | End-to-end orchestrator: build → health checks → configure → init schema → demo queries |
 | `demo/demo_queries.sh` | 7-query walkthrough illustrating virtual topic pattern |
+| `demo/agent_demo/app.py` | FastAPI backend: 7 Claude tools backed by RisingWave SQL; SSE streaming `/chat` endpoint |
+| `demo/agent_demo/index.html` | Solace-branded single-page UI; chat + Agent Activity panels; live fleet stats bar |
+| `demo/agent_demo/requirements.txt` | `fastapi`, `uvicorn`, `anthropic`, `psycopg2-binary`, `python-dotenv` |
+| `demo/agent_demo/Dockerfile` | Python 3.11-slim; exposes port 8090 |
+| `demo/agent_demo/.env.template` | Committed placeholder — copy to `.env` and fill in credentials |
 
 ---
 
@@ -121,6 +128,8 @@ fleet/commands/{vehicle_id}/{command_type}
 | RisingWave SQL (psql) | 4566 | Postgres wire protocol |
 | RisingWave Dashboard | 5691 | — |
 | Kafka Connect REST | 8083 | — |
+| Fleet Agent UI | 8090 | Agentic demo — FastAPI + Claude + RisingWave tools |
+| fleet-generator | — | No host port; internal container publishes to Solace on streaming-net |
 
 ---
 
@@ -149,7 +158,14 @@ bash config/solace/setup.sh localhost
 bash config/redpanda/setup.sh
 # Deploy connector via curl (see run_demo.sh step 5)
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
-python3.13 generator/generator.py --host tcp://localhost:55555 --vpn streaming-poc --user streaming-user --password default
+# fleet-generator and fleet-agent start automatically as containers
+```
+
+### Fleet Agent UI prerequisites
+Copy `demo/agent_demo/.env.template` to `demo/agent_demo/.env` and fill in:
+```
+ANTHROPIC_API_KEY=sk-...
+LITELLM_BASE_URL=          # optional — leave blank to call Anthropic directly
 ```
 
 ### Re-initialize RisingWave schema only (idempotent)
@@ -171,10 +187,11 @@ psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 
 ## Python Notes
 
-- Use `python3.13` on this host — `/usr/bin/python3` has no pip
-- `run_demo.sh` auto-detects `python3.13` via `$PYTHON` variable
+- Use `python3.13` on this host for any direct invocations — `/usr/bin/python3` has no pip
+- `run_demo.sh` auto-detects `python3.13` via `$PYTHON` variable (used for JSON parsing in shell)
 - SDK package name on PyPI: `solace-pubsubplus` (note: this is the package name, not the brand name)
 - Import path: `from solace.messaging.errors.pubsubplus_client_error import PubSubPlusClientError`
+- The fleet generator and fleet-agent both run in Docker (python:3.11-slim) — no host Python needed
 
 ---
 
@@ -195,7 +212,9 @@ psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 |---|---|---|
 | `fleet_telemetry_raw` returns 0 rows | Wrong topic name in SOURCE | Re-run `init.sql`; source must read `fleet-events` |
 | Connector in FAILED state | ClassNotFoundException | `CONNECT_PLUGIN_PATH` must be `/usr/share/java`, not the plugin subdir |
-| Generator `ModuleNotFoundError` | Wrong Python binary | Use `python3.13`, not `/usr/bin/python3` |
+| Generator not publishing | VPN not yet configured | `generator/entrypoint.sh` polls SEMP — run `docker logs -f fleet-generator` to see wait status |
 | SEMP calls fail silently | `curl -sf` swallows errors | Use `curl -s` to see error body |
 | Queue has no subscriptions | `setup.sh` error not surfaced | Check SEMP: `GET /msgVpns/streaming-poc/queues/q%2Fredpanda-bridge/subscriptions` |
 | `psql: command not found` | Client not installed | `sudo apt-get install -y postgresql-client` |
+| Fleet Agent UI shows "DEMO" tag | RisingWave unreachable or no data | Confirm RisingWave is healthy; UI falls back to mock data automatically |
+| Fleet Agent UI `401 Unauthorized` | Missing or wrong `ANTHROPIC_API_KEY` | Check `demo/agent_demo/.env`; ensure `.env` exists (copy from `.env.template`) |

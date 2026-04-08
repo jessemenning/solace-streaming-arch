@@ -86,7 +86,7 @@ create_queue() {
   encoded_qname=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$qname', safe=''))" 2>/dev/null \
     || echo "${qname//\//%2F}")
 
-  log "Creating queue: ${qname}"
+  log "Creating queue: ${qname}" >&2
   semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 {
   "queueName": "${qname}",

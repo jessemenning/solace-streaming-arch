@@ -154,6 +154,12 @@ tool outputs grounds its responses in the actual current state of the world. The
 doesn't need to process raw event streams — it queries views that have already distilled
 thousands of messages into the facts that matter.
 
+> **This pattern is demonstrated live.** The Fleet Operations AI UI (http://localhost:8090
+> when the stack is running) is a working agentic demo: a Claude-backed assistant with
+> 7 SQL-backed tools querying RisingWave materialized views in real time. Ask it questions
+> like "Which vehicles have the most alerts today?" or "What's happening with vehicle_005?"
+> and it selects and calls the appropriate tools, then synthesizes the results into a response.
+
 ### Why this architecture is well-suited for agentic workloads
 
 | Agent requirement | How this architecture meets it |
@@ -248,6 +254,11 @@ Kafka-native connectors and consumers.
 4. **The developer experience is dramatically simpler.** Adding a new analytical view is
    a SQL query, not a sprint. No topic hierarchy negotiation, no producer changes, no
    custom stateful consumer code.
+
+5. **The agentic pattern is running.** The Fleet Operations AI demo (included in the stack)
+   shows an LLM using materialized views as tool outputs. It demonstrates concretely what
+   "grounding AI reasoning in real-time data" means in practice — not a slide, a working
+   system asking and answering questions about live fleet state.
 
 ---
 

@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fleet Operations AI — Solace Streaming Architecture</title>
+<style>
+  /* ── Solace brand tokens ───────────────────────────────────────────────── */
+  :root {
+    --dark-blue:    #03213B;
+    --deep-blue:    #093B5F;
+    --classic-green:#00C895;
+    --bright-green: #ABFF88;
+    --dark-green:   #009193;
+    --orange:       #FCA829;
+    --sky-blue:     #C2F7FF;
+    --gray-12:      #F4F4F4;
+    --gray-14:      #D6D6D6;
+    --white:        #FFFFFF;
+    --text-dim:     rgba(255,255,255,0.55);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Figtree, 'Segoe UI', sans-serif;
+    background: var(--dark-blue);
+    color: var(--white);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  header {
+    background: var(--deep-blue);
+    border-bottom: 1px solid rgba(0,200,149,0.25);
+    padding: 0 20px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-mark {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--bright-green), var(--classic-green));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--dark-blue);
+    flex-shrink: 0;
+  }
+
+  .header-titles h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -0.01em;
+  }
+
+  .header-titles p {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    margin-top: 1px;
+  }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    color: var(--classic-green);
+    background: rgba(0,200,149,0.12);
+    border: 1px solid rgba(0,200,149,0.3);
+    border-radius: 12px;
+    padding: 3px 9px;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--classic-green);
+    animation: pulse 2s infinite;
+  }
+
+  .mock-badge {
+    color: var(--orange);
+    border-color: rgba(252,168,41,0.3);
+    background: rgba(252,168,41,0.1);
+  }
+  .mock-badge .live-dot { background: var(--orange); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* ── Stats bar ───────────────────────────────────────────────────────────── */
+  .stats-bar {
+    display: flex;
+    gap: 10px;
+  }
+
+  .stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-size: 12px;
+  }
+
+  .stat-chip .num {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .stat-chip .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.75;
+  }
+
+  .stat-high   { border-color: rgba(252,68,  68, 0.35); background: rgba(252,68,  68, 0.08); }
+  .stat-medium { border-color: rgba(252,168,41, 0.35);  background: rgba(252,168,41, 0.08);  }
+  .stat-low    { border-color: rgba(0,200,149, 0.35);   background: rgba(0,200,149, 0.08);   }
+  .stat-veh    { border-color: rgba(194,247,255,0.3);   background: rgba(194,247,255,0.05);  }
+
+  .stat-high   .num { color: #ff6b6b; }
+  .stat-medium .num { color: var(--orange); }
+  .stat-low    .num { color: var(--classic-green); }
+  .stat-veh    .num { color: var(--sky-blue); }
+
+  /* ── Main layout ─────────────────────────────────────────────────────────── */
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 0;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* ── Chat panel ──────────────────────────────────────────────────────────── */
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 20px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+  /* Welcome message */
+  .welcome {
+    text-align: center;
+    padding: 32px 20px;
+    opacity: 0.7;
+  }
+  .welcome h2 { font-size: 15px; color: var(--classic-green); margin-bottom: 6px; }
+  .welcome p  { font-size: 13px; color: var(--text-dim); line-height: 1.5; max-width: 360px; margin: 0 auto; }
+
+  /* Message bubbles */
+  .msg { display: flex; gap: 10px; max-width: 100%; }
+
+  .msg-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0; margin-top: 2px;
+  }
+
+  .msg-user  { flex-direction: row-reverse; }
+  .msg-user .msg-avatar  { background: linear-gradient(135deg, var(--classic-green), var(--dark-green)); color: var(--dark-blue); }
+  .msg-agent .msg-avatar { background: var(--deep-blue); border: 1px solid rgba(0,200,149,0.4); color: var(--classic-green); }
+
+  .msg-bubble {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+
+  .msg-user  .msg-bubble { background: rgba(0,200,149,0.15); border: 1px solid rgba(0,200,149,0.25); border-top-right-radius: 4px; }
+  .msg-agent .msg-bubble { background: var(--deep-blue);    border: 1px solid rgba(255,255,255,0.08); border-top-left-radius: 4px; }
+
+  .msg-bubble p  { margin-bottom: 6px; }
+  .msg-bubble p:last-child { margin-bottom: 0; }
+  .msg-bubble strong { color: var(--classic-green); }
+  .msg-bubble code   { font-family: 'Space Mono', monospace; font-size: 11px; background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px; }
+
+  .msg-thinking {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--text-dim); font-size: 12px;
+  }
+  .thinking-dots span {
+    display: inline-block; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--classic-green);
+    animation: bounce 1.2s infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%,80%,100% { transform: translateY(0); }
+    40%         { transform: translateY(-5px); }
+  }
+
+  /* ── Input area ──────────────────────────────────────────────────────────── */
+  .input-area {
+    padding: 12px 16px 16px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    background: rgba(0,0,0,0.15);
+  }
+
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .suggestion-chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,200,149,0.3);
+    background: rgba(0,200,149,0.06);
+    color: var(--classic-green);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .suggestion-chip:hover {
+    background: rgba(0,200,149,0.14);
+    border-color: rgba(0,200,149,0.55);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
+  textarea {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 10px;
+    color: var(--white);
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 10px 13px;
+    resize: none;
+    max-height: 100px;
+    min-height: 40px;
+    line-height: 1.4;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: rgba(0,200,149,0.5); }
+  textarea::placeholder { color: rgba(255,255,255,0.3); }
+
+  .send-btn {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--classic-green);
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover:not(:disabled) { background: var(--bright-green); transform: scale(1.04); }
+  .send-btn:disabled { background: rgba(0,200,149,0.3); cursor: not-allowed; }
+  .send-btn svg { width: 17px; height: 17px; fill: var(--dark-blue); }
+
+  /* ── Agent activity panel ────────────────────────────────────────────────── */
+  .activity-panel {
+    display: flex;
+    flex-direction: column;
+    background: rgba(0,0,0,0.2);
+    min-height: 0;
+  }
+
+  .activity-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+  }
+
+  .activity-header h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .activity-header p {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+
+  .tool-cards {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .tool-cards::-webkit-scrollbar { width: 4px; }
+  .tool-cards::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .tool-card {
+    background: var(--deep-blue);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .tool-card.active { border-color: rgba(0,200,149,0.4); }
+
+  .tool-card-header {
+    padding: 9px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .tool-icon {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: rgba(0,200,149,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .tool-card.querying .tool-icon { animation: tool-pulse 1s infinite; }
+  @keyframes tool-pulse {
+    0%,100% { background: rgba(0,200,149,0.15); }
+    50%      { background: rgba(0,200,149,0.35); }
+  }
+
+  .tool-name-block { flex: 1; min-width: 0; }
+  .tool-view-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--classic-green);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'Space Mono', monospace;
+  }
+  .tool-status {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 1px;
+  }
+
+  .tool-source-tag {
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .source-live {
+    background: rgba(0,200,149,0.12);
+    color: var(--classic-green);
+    border: 1px solid rgba(0,200,149,0.3);
+  }
+  .source-mock {
+    background: rgba(252,168,41,0.1);
+    color: var(--orange);
+    border: 1px solid rgba(252,168,41,0.3);
+  }
+
+  .tool-card-body {
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .tool-card-body.open { max-height: 300px; overflow-y: auto; }
+
+  .result-table {
+    width: 100%;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    border-collapse: collapse;
+  }
+  .result-table th {
+    background: rgba(0,0,0,0.2);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    padding: 5px 8px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .result-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--white);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+  .result-table tr:last-child td { border-bottom: none; }
+  .result-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+  .td-high   { color: #ff6b6b !important; }
+  .td-medium { color: var(--orange) !important; }
+  .td-low    { color: var(--classic-green) !important; }
+
+  .empty-activity {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+    text-align: center;
+    padding: 20px;
+  }
+  .empty-icon { font-size: 28px; opacity: 0.3; }
+
+  /* ── Architecture callout ────────────────────────────────────────────────── */
+  .arch-footer {
+    padding: 10px 12px 12px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+  }
+
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+
+  .arch-node {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .arch-solace   { background: rgba(0,200,149,0.15); color: var(--classic-green); }
+  .arch-redpanda { background: rgba(252,168,41,0.12); color: var(--orange); }
+  .arch-rising   { background: rgba(194,247,255,0.1); color: var(--sky-blue); }
+  .arch-arrow    { color: rgba(255,255,255,0.25); }
+  .arch-label    { color: var(--text-dim); font-size: 9px; }
+
+  /* ── Responsive ──────────────────────────────────────────────────────────── */
+  @media (max-width: 720px) {
+    .main { grid-template-columns: 1fr; }
+    .activity-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="logo-mark">S</div>
+    <div class="header-titles">
+      <h1>Fleet Operations AI</h1>
+      <p>Agentic use case · Solace → Redpanda → RisingWave</p>
+    </div>
+    <div class="header-right">
+      <div class="live-badge" id="liveBadge">
+        <div class="live-dot"></div>
+        <span id="liveLabel">connecting…</span>
+      </div>
+    </div>
+  </div>
+  <div class="stats-bar">
+    <div class="stat-chip stat-high">
+      <span class="num" id="statHigh">—</span>
+      <span class="label">High alerts</span>
+    </div>
+    <div class="stat-chip stat-medium">
+      <span class="num" id="statMedium">—</span>
+      <span class="label">Medium</span>
+    </div>
+    <div class="stat-chip stat-low">
+      <span class="num" id="statLow">—</span>
+      <span class="label">Low</span>
+    </div>
+    <div class="stat-chip stat-veh">
+      <span class="num" id="statVeh">20</span>
+      <span class="label">Vehicles</span>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Chat panel -->
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <h2>Ask me anything about the fleet</h2>
+        <p>I have real-time access to streaming materialized views — each tool call queries pre-computed state from the live Solace → Redpanda → RisingWave pipeline.</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="suggestions" id="suggestions">
+        <button class="suggestion-chip" onclick="useSuggestion(this)">What's the fleet status right now?</button>
+        <button class="suggestion-chip" onclick="useSuggestion(this)">Which vehicles need immediate attention?</button>
+        <button class="suggestion-chip" onclick="useSuggestion(this)">Tell me about vehicle_005</button>
+        <button class="suggestion-chip" onclick="useSuggestion(this)">Any vehicles in Boston right now?</button>
+        <button class="suggestion-chip" onclick="useSuggestion(this)">What led up to the latest high-severity alert?</button>
+        <button class="suggestion-chip" onclick="useSuggestion(this)">What's the average fleet speed?</button>
+      </div>
+      <div class="input-row">
+        <textarea
+          id="input"
+          placeholder="Ask about fleet status, alerts, vehicles…"
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send">
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent activity panel -->
+  <div class="activity-panel">
+    <div class="activity-header">
+      <h3>Agent Activity</h3>
+      <p>Tool calls · materialized view queries</p>
+    </div>
+
+    <div class="tool-cards" id="toolCards">
+      <div class="empty-activity" id="emptyActivity">
+        <div class="empty-icon">⚡</div>
+        <div>Tool calls will appear here<br>as the agent queries views</div>
+      </div>
+    </div>
+
+    <div class="arch-footer">
+      <div class="arch-flow">
+        <span class="arch-label">Data flow:</span>
+        <span class="arch-node arch-solace">Solace Platform</span>
+        <span class="arch-arrow">→</span>
+        <span class="arch-node arch-redpanda">Redpanda</span>
+        <span class="arch-arrow">→</span>
+        <span class="arch-node arch-rising">RisingWave</span>
+        <span class="arch-arrow">→</span>
+        <span class="arch-label">agent tools</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const conversationHistory = [];
+let streaming = false;
+
+// ── Tool metadata ──────────────────────────────────────────────────────────
+const TOOL_META = {
+  get_fleet_alert_summary:   { icon: '📊', label: 'fleet_alert_summary',      desc: 'Fleet-wide alert counts · 1h rolling window' },
+  get_high_severity_alerts:  { icon: '🚨', label: 'high_severity_alerts',     desc: 'Critical alerts needing immediate attention' },
+  get_vehicle_speed_averages:{ icon: '⚡', label: 'vehicle_speed_5min_avg',   desc: '5-min tumbling window · no pub/sub equivalent' },
+  get_alerts_with_context:   { icon: '🔗', label: 'alerts_with_context',      desc: 'Stream–stream join · telemetry 2min before alert' },
+  get_vehicles_in_boston:    { icon: '📍', label: 'vehicles_in_region_boston',desc: 'Live geofence · spatial SQL predicate' },
+  get_vehicle_activity:      { icon: '📈', label: 'vehicle_event_counts_1h',  desc: 'Per-vehicle activity heatmap · 1h rolling' },
+  get_vehicle_details:       { icon: '🚗', label: 'high_severity_alerts',     desc: 'Vehicle-specific alert history' },
+};
+
+// ── Live stats refresh ─────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    const r = await fetch('/fleet-stats');
+    const d = await r.json();
+    document.getElementById('statHigh').textContent   = d.high;
+    document.getElementById('statMedium').textContent = d.medium;
+    document.getElementById('statLow').textContent    = d.low;
+    document.getElementById('statVeh').textContent    = d.vehicles;
+
+    const badge = document.getElementById('liveBadge');
+    const label = document.getElementById('liveLabel');
+    if (d.live) {
+      badge.className = 'live-badge';
+      label.textContent = 'LIVE';
+    } else {
+      badge.className = 'live-badge mock-badge';
+      label.textContent = 'DEMO DATA';
+    }
+  } catch (e) {
+    document.getElementById('liveLabel').textContent = 'offline';
+  }
+}
+refreshStats();
+setInterval(refreshStats, 6000);
+
+// ── Chat helpers ──────────────────────────────────────────────────────────
+function scrollToBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function addUserMessage(text) {
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  const el = document.createElement('div');
+  el.className = 'msg msg-user';
+  el.innerHTML = `
+    <div class="msg-avatar">U</div>
+    <div class="msg-bubble">${escHtml(text)}</div>`;
+  document.getElementById('messages').appendChild(el);
+  scrollToBottom();
+}
+
+function addAgentMessageEl() {
+  const el = document.createElement('div');
+  el.className = 'msg msg-agent';
+  el.innerHTML = `
+    <div class="msg-avatar">AI</div>
+    <div class="msg-bubble" id="agentBubble"></div>`;
+  document.getElementById('messages').appendChild(el);
+  scrollToBottom();
+  return document.getElementById('agentBubble');
+}
+
+function addThinking() {
+  const el = document.createElement('div');
+  el.className = 'msg msg-agent';
+  el.id = 'thinking';
+  el.innerHTML = `
+    <div class="msg-avatar">AI</div>
+    <div class="msg-bubble">
+      <div class="msg-thinking">
+        <div class="thinking-dots"><span></span><span></span><span></span></div>
+      </div>
+    </div>`;
+  document.getElementById('messages').appendChild(el);
+  scrollToBottom();
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking');
+  if (el) el.remove();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Very light markdown → HTML for agent responses
+function renderMarkdown(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
+
+// ── Tool card helpers ─────────────────────────────────────────────────────
+let toolCardCount = 0;
+
+function addToolCard(toolName) {
+  const emptyEl = document.getElementById('emptyActivity');
+  if (emptyEl) emptyEl.remove();
+
+  const meta = TOOL_META[toolName] || { icon: '🔍', label: toolName, desc: '' };
+  const id = `tc-${++toolCardCount}`;
+
+  const card = document.createElement('div');
+  card.className = 'tool-card active querying';
+  card.id = id;
+  card.innerHTML = `
+    <div class="tool-card-header" onclick="toggleCard('${id}')">
+      <div class="tool-icon">${meta.icon}</div>
+      <div class="tool-name-block">
+        <div class="tool-view-name">${meta.label}</div>
+        <div class="tool-status" id="${id}-status">querying…</div>
+      </div>
+      <span class="tool-source-tag source-live" id="${id}-src" style="display:none">LIVE</span>
+    </div>
+    <div class="tool-card-body" id="${id}-body"></div>`;
+
+  document.getElementById('toolCards').appendChild(card);
+  document.getElementById('toolCards').scrollTop = 99999;
+  return id;
+}
+
+function resolveToolCard(cardId, rows, isLive) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.classList.remove('querying');
+  card.classList.remove('active');
+
+  const status = document.getElementById(`${cardId}-status`);
+  const src    = document.getElementById(`${cardId}-src`);
+  if (status) status.textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''} returned`;
+  if (src) {
+    src.style.display = 'inline';
+    src.textContent = isLive ? 'LIVE' : 'DEMO';
+    src.className = `tool-source-tag ${isLive ? 'source-live' : 'source-mock'}`;
+  }
+
+  const body = document.getElementById(`${cardId}-body`);
+  if (body && rows.length > 0) {
+    body.innerHTML = buildTable(rows);
+    body.classList.add('open');
+  }
+}
+
+function toggleCard(id) {
+  const body = document.getElementById(`${id}-body`);
+  if (body) body.classList.toggle('open');
+}
+
+function buildTable(rows) {
+  if (!rows.length) return '<div style="padding:10px;font-size:11px;color:var(--text-dim)">No data</div>';
+
+  const cols = Object.keys(rows[0]).slice(0, 6); // cap columns for readability
+  const sevCols = new Set(['severity', 'alert_count', 'event_type', 'event_count']);
+
+  let html = '<table class="result-table"><thead><tr>';
+  cols.forEach(c => { html += `<th>${c}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  rows.slice(0, 12).forEach(row => {
+    html += '<tr>';
+    cols.forEach(c => {
+      const v = row[c];
+      const display = v == null ? '—' : String(v).substring(0, 28);
+      let cls = '';
+      if (c === 'severity' || (c === 'event_count' && row.severity)) {
+        if (row.severity === 'high')   cls = 'td-high';
+        if (row.severity === 'medium') cls = 'td-medium';
+        if (row.severity === 'low')    cls = 'td-low';
+      }
+      html += `<td class="${cls}" title="${escHtml(String(v ?? ''))}">${escHtml(display)}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  return html;
+}
+
+// ── Pending tool cards (tracked by tool name for this turn) ───────────────
+const pendingCards = {};
+
+// ── Send message ──────────────────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if (!text || streaming) return;
+
+  streaming = true;
+  document.getElementById('sendBtn').disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+
+  addUserMessage(text);
+  conversationHistory.push({ role: 'user', content: text });
+  addThinking();
+
+  let agentBubble = null;
+  let agentText = '';
+
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: conversationHistory }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      removeThinking();
+      agentBubble = addAgentMessageEl();
+      agentBubble.textContent = `Error: ${err.detail || resp.statusText}`;
+      streaming = false;
+      document.getElementById('sendBtn').disabled = false;
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+
+        let evt;
+        try { evt = JSON.parse(raw); } catch { continue; }
+
+        if (evt.type === 'text') {
+          if (!agentBubble) {
+            removeThinking();
+            agentBubble = addAgentMessageEl();
+          }
+          agentText += evt.content;
+          agentBubble.innerHTML = '<p>' + renderMarkdown(agentText) + '</p>';
+          scrollToBottom();
+
+        } else if (evt.type === 'tool_start') {
+          const cardId = addToolCard(evt.name);
+          pendingCards[evt.name] = cardId; // track by name (one at a time per name is fine for this demo)
+
+        } else if (evt.type === 'tool_result') {
+          const cardId = pendingCards[evt.name];
+          if (cardId) {
+            resolveToolCard(cardId, evt.rows || [], evt.live);
+            delete pendingCards[evt.name];
+          }
+          // Show thinking if Claude needs to think after tool results
+          if (!agentBubble) addThinking();
+
+        } else if (evt.type === 'done') {
+          removeThinking();
+          if (agentText) {
+            conversationHistory.push({ role: 'assistant', content: agentText });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    removeThinking();
+    if (!agentBubble) agentBubble = addAgentMessageEl();
+    agentBubble.textContent = `Connection error: ${e.message}`;
+  }
+
+  streaming = false;
+  document.getElementById('sendBtn').disabled = false;
+  scrollToBottom();
+}
+
+// ── Input helpers ─────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function useSuggestion(btn) {
+  const input = document.getElementById('input');
+  input.value = btn.textContent;
+  input.focus();
+  autoResize(input);
+}
+</script>
+</body>
+</html>

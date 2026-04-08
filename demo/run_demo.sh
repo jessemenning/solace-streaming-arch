@@ -59,11 +59,7 @@ for cmd in docker curl python3 psql; do
 done
 log "Preflight checks passed (docker, curl, python3, psql)."
 
-GENERATOR_PID=""
-cleanup() {
-  log "Cleaning up..."
-  [[ -n "${GENERATOR_PID}" ]] && kill "${GENERATOR_PID}" 2>/dev/null || true
-}
+cleanup() { log "Cleaning up..."; }
 trap cleanup EXIT
 
 # ── Helper: wait for a URL to respond ────────────────────────────────────────
@@ -115,8 +111,8 @@ else
   log "Downloading Solace connector JARs to config/kafka-connect/plugins/ ..."
   bash config/kafka-connect/download-connector.sh
 
-  log "Building Kafka Connect image..."
-  docker-compose build kafka-connect
+  log "Building images (kafka-connect, fleet-agent, fleet-generator)..."
+  docker-compose build kafka-connect fleet-agent fleet-generator
   docker-compose up -d
 fi
 log "docker-compose started. Waiting for services to become healthy..."
@@ -190,27 +186,14 @@ log "=== STEP 6: Initializing RisingWave sources and materialized views ==="
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 log "  RisingWave schema initialized."
 
-# ─── STEP 7: Start generator ─────────────────────────────────────────────────
-log "=== STEP 7: Starting fleet telemetry generator ==="
-
-if ! "${PYTHON}" -c "from solace.messaging.messaging_service import MessagingService" 2>/dev/null; then
-  log "  Installing Python dependencies..."
-  "${PYTHON}" -m pip install -q -r generator/requirements.txt
+# ─── STEP 7: Generator ───────────────────────────────────────────────────────
+log "=== STEP 7: Fleet telemetry generator ==="
+log "  Running as container fleet-generator (started by docker-compose)."
+log "  It will begin publishing once the streaming-poc VPN is ready."
+if [[ "${BURST_MODE}" == "true" ]]; then
+  log "  Burst mode requested — restarting fleet-generator with BURST=true..."
+  BURST=true docker-compose up -d fleet-generator
 fi
-
-BURST_FLAG=""
-[[ "${BURST_MODE}" == "true" ]] && BURST_FLAG="--burst"
-
-"${PYTHON}" generator/generator.py \
-  --host tcp://localhost:55555 \
-  --vpn streaming-poc \
-  --user streaming-user \
-  --password default \
-  ${BURST_FLAG} \
-  &> /tmp/generator.log &
-GENERATOR_PID=$!
-
-log "  Generator PID: ${GENERATOR_PID}  (logs: /tmp/generator.log)"
 
 # ─── STEP 8: Wait for data to propagate ──────────────────────────────────────
 log "=== STEP 8: Waiting 35 seconds for data to flow through pipeline ==="
@@ -232,20 +215,15 @@ bash demo/demo_queries.sh
 log ""
 log "=== Demo complete ==="
 log ""
-log "  Leave the generator running and explore live:"
-log "    psql -h localhost -p 4566 -U root -d dev"
+log "  Explore live:"
+log "    http://localhost:8090    (Fleet Operations AI — agentic demo)"
 log "    http://localhost:8888    (Redpanda Console)"
 log "    http://localhost:5691    (RisingWave Dashboard)"
 log "    http://localhost:8180    (Solace Platform admin)"
+log "    psql -h localhost -p 4566 -U root -d dev"
 log ""
-log "  Generator logs: /tmp/generator.log"
-log "  Generator PID:  ${GENERATOR_PID}"
+log "  Generator logs:"
+log "    docker logs -f fleet-generator"
 log ""
 log "  To stop everything:"
-log "    kill ${GENERATOR_PID}"
 log "    docker-compose down"
-log ""
-
-# Keep generator alive for interactive exploration
-log "Press Ctrl-C to stop generator and exit."
-wait "${GENERATOR_PID}"
