@@ -1,0 +1,165 @@
+networks:
+  streaming-net:
+    driver: bridge
+
+volumes:
+  solace-data:
+  redpanda-data:
+
+services:
+
+  # ─── Solace Platform Event Broker ─────────────────────────────────────────
+  solace:
+    image: solace/solace-pubsub-standard:latest
+    hostname: solace
+    container_name: solace
+    networks:
+      - streaming-net
+    ports:
+      - "8180:8080"   # SEMP admin REST API (host 8080 already in use → mapped to 8180)
+      - "55555:55555" # SMF (Solace Message Format — native protocol)
+      - "1883:1883"   # MQTT
+      - "8008:8008"   # WebSocket / MQTT over WS
+    environment:
+      - username_admin_globalaccesslevel=admin
+      - username_admin_password=admin
+      - system_scaling_maxconnectioncount=100
+    shm_size: "1g"
+    ulimits:
+      core:
+        soft: 1
+        hard: 1
+    volumes:
+      - solace-data:/var/lib/solace
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -sf -u admin:admin http://localhost:8080/SEMP/v2/config/about/api > /dev/null"
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 90s
+
+  # ─── Redpanda (Kafka-compatible durable log) ───────────────────────────────
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda
+    hostname: redpanda
+    networks:
+      - streaming-net
+    ports:
+      - "9092:9092"   # Kafka API (internal)
+      - "19092:19092" # Kafka API (external / host access)
+      - "8081:8081"   # Schema Registry
+      - "9644:9644"   # Admin API
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr
+      - internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr
+      - redpanda:33145
+      - --advertise-rpc-addr
+      - redpanda:33145
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "rpk topic list --brokers localhost:9092 > /dev/null 2>&1 || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # ─── Redpanda Console (UI) ─────────────────────────────────────────────────
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: redpanda-console
+    hostname: redpanda-console
+    networks:
+      - streaming-net
+    ports:
+      - "8888:8080"
+    environment:
+      - KAFKA_BROKERS=redpanda:9092
+      - KAFKA_SCHEMAREGISTRY_ENABLED=true
+      - KAFKA_SCHEMAREGISTRY_URLS=http://redpanda:8081
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # ─── RisingWave (streaming SQL materialized views) ────────────────────────
+  risingwave:
+    image: risingwavelabs/risingwave:latest
+    container_name: risingwave
+    hostname: risingwave
+    networks:
+      - streaming-net
+    ports:
+      - "4566:4566" # Frontend SQL (Postgres wire protocol)
+      - "5691:5691" # Dashboard / metadata
+    command: playground
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "psql -h localhost -p 4566 -U root -d dev -c 'SELECT 1' > /dev/null 2>&1 || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+
+  # ─── Kafka Connect (Solace → Redpanda bridge) ─────────────────────────────
+  kafka-connect:
+    build:
+      context: ./config/kafka-connect
+      dockerfile: Dockerfile
+    container_name: kafka-connect
+    hostname: kafka-connect
+    networks:
+      - streaming-net
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: redpanda:9092
+      CONNECT_REST_PORT: "8083"
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_GROUP_ID: streaming-poc-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_PLUGIN_PATH: /usr/share/java
+      CONNECT_LOG4J_ROOT_LOGLEVEL: WARN
+      CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      solace:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -sf http://localhost:8083/ > /dev/null"
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 90s

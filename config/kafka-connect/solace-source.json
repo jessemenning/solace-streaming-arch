@@ -1,0 +1,25 @@
+{
+  "name": "solace-redpanda-bridge",
+  "config": {
+    "connector.class": "com.solace.connector.kafka.connect.source.SolaceSourceConnector",
+    "tasks.max": "1",
+
+    "sol.host": "tcp://solace:55555",
+    "sol.vpn_name": "streaming-poc",
+    "sol.username": "streaming-user",
+    "sol.password": "default",
+
+    "sol.queue": "q/redpanda-bridge",
+
+    "kafka.topic": "fleet-events",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+
+    "sol.message_processor_class": "com.solace.connector.kafka.connect.source.msgprocessors.SolSampleSimpleMessageProcessor",
+
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true"
+  }
+}
