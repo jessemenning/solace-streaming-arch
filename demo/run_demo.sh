@@ -214,6 +214,13 @@ bash demo/demo_queries.sh
 
 log ""
 log "=== Demo complete ==="
+
+# ─── Auto-launch Fleet Operations AI UI ──────────────────────────────────────
+if command -v xdg-open &>/dev/null; then
+  xdg-open "http://localhost:8090" &>/dev/null &
+elif command -v open &>/dev/null; then
+  open "http://localhost:8090"
+fi
 log ""
 log "  Explore live:"
 log "    http://localhost:8090    (Fleet Operations AI — agentic demo)"

@@ -13,4 +13,3 @@ redpanda-data/
 # Environment — never commit live credentials
 .env
 .env.local
-demo/agent_demo/.env

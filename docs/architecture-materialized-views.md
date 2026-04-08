@@ -1,0 +1,148 @@
+# RisingWave Materialized Views — Architecture Notes
+
+## How MVs Map to Solace Topic Hierarchies
+
+The core pattern: SQL `WHERE` clauses replace Solace wildcard subscriptions.
+
+All messages flow into one Redpanda topic (`fleet-events`) with the original Solace topic embedded as `solace_topic`. RisingWave MVs replicate the same filtering:
+
+| Solace subscription | RisingWave equivalent |
+|---|---|
+| `fleet/telemetry/>` | `WHERE solace_topic LIKE 'fleet/telemetry/%'` |
+| `fleet/events/>` | `WHERE solace_topic LIKE 'fleet/events/%'` |
+| `fleet/events/*/alerts/high` | `WHERE solace_topic LIKE 'fleet/events/%/alerts/high'` |
+| `fleet/telemetry/*/metrics/speed` | `WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/speed'` |
+
+The `*` → `%` substitution is the direct translation between SMF wildcards and SQL LIKE patterns.
+
+### Three-tier structure
+
+```
+fleet_all_raw  (SOURCE — reads fleet-events, all fields nullable)
+  ├── fleet_telemetry_raw  (MV — LIKE 'fleet/telemetry/%')
+  ├── fleet_events_raw     (MV — LIKE 'fleet/events/%')
+  └── fleet_commands_raw   (MV — LIKE 'fleet/commands/%')
+        ↓
+Analytics MVs build on routing MVs:
+  ├── vehicle_speeds          (speed messages only)
+  ├── high_severity_alerts    (alerts/high)
+  ├── vehicle_speed_5min_avg  (TUMBLE window — no Solace equivalent)
+  └── alerts_with_context     (stream-stream JOIN — no Solace equivalent)
+```
+
+MVs extend beyond topic filtering — windowed aggregations and stream-stream JOINs have no Solace equivalent.
+
+---
+
+## Dynamic MV Creation
+
+MVs are created via standard SQL DDL. Since RisingWave speaks the Postgres wire protocol, any client (`psql`, `psycopg2`, JDBC) can issue `CREATE MATERIALIZED VIEW` at runtime:
+
+```python
+cur.execute(f"""
+    CREATE MATERIALIZED VIEW alerts_{vehicle_id} AS
+    SELECT * FROM fleet_events_raw
+    WHERE vehicle_id = '{vehicle_id}' AND severity = 'high'
+""")
+```
+
+For large backfills, use non-blocking creation:
+```sql
+SET BACKGROUND_DDL = true;
+CREATE MATERIALIZED VIEW my_mv AS SELECT ...;
+```
+
+### DDL limitations
+
+| Capability | Status |
+|---|---|
+| Create MV at runtime via SQL | Yes |
+| Background (non-blocking) creation | Yes |
+| `CREATE OR REPLACE` | No — drop and recreate |
+| `ALTER` to change the query | No — only `RENAME` supported |
+| Modify MV without data loss window | No — DROP clears the view's data |
+| Dependents (MVs built on MVs) | Must recreate the whole chain bottom-up |
+
+---
+
+## Performance Implications
+
+### Actor model is the binding constraint
+
+Every MV is decomposed into fragments → actors (parallel workers). Actors run continuously — they consume CPU, memory, and storage at all times, not just at query time.
+
+```sql
+SELECT * FROM rw_worker_actor_count;  -- check current actor distribution
+```
+
+Default limits per worker parallelism:
+| Threshold | Default |
+|---|---|
+| Soft limit | 6 actors |
+| Hard limit (DDL fails) | 7 actors |
+
+On a single-node dev setup with 4 parallelism, the soft limit is hit at ~24 total actors.
+
+### Cost by MV type
+
+| MV type | Typical actor cost | Example in this project |
+|---|---|---|
+| Simple filter/projection | ~4 actors | `fleet_telemetry_raw` |
+| Aggregation + GROUP BY | 8–12 actors | `fleet_alert_summary` |
+| TUMBLE window | 8–12 actors | `vehicle_speed_5min_avg` |
+| Stream-stream JOIN | 12–16+ actors | `alerts_with_context` |
+
+### Raising cluster limits
+
+```toml
+# meta node config
+[meta.developer]
+meta_actor_cnt_per_worker_parallelism_soft_limit = 100
+meta_actor_cnt_per_worker_parallelism_hard_limit = 400
+```
+
+### Backpressure diagnosis
+
+```sql
+EXPLAIN CREATE MATERIALIZED VIEW my_mv AS SELECT ...;  -- map operators to fragments
+```
+
+Then find the bottleneck in Grafana: **Streaming Actors > Actor Output Blocking Time Ratio**.
+
+Fix options in order of preference:
+1. Simplify the query
+2. `ALTER MATERIALIZED VIEW m SET PARALLELISM = N`
+3. Add compute nodes to the cluster
+
+---
+
+## Dynamic Create/Drop Strategy
+
+### The core trade-off
+
+```
+Persistent MV:  continuous actor cost, instant query, full history
+Dynamic MV:     zero cost at rest, backfill latency on create, data loss on drop
+Direct SELECT:  zero actor cost, full scan cost per query, no incremental state
+```
+
+### When dynamic create/drop helps
+
+- **Ad-hoc analysis** — user requests a targeted view for a bounded time window; drop on disconnect
+- **Burst/incident response** — spin up a JOIN MV for affected vehicles during an incident, drop when resolved
+- **Scheduled batch windows** — create at shift start, drop at shift end; avoids 24/7 actor consumption
+
+### When it doesn't help
+
+- **Cheap routing MVs** — filter-only MVs (~4 actors) don't justify the DDL complexity
+- **High-churn use cases** — creating/dropping every few seconds: DDL overhead and backfill cost exceed savings; use direct `SELECT` instead
+- **Historical data requirements** — MVs backfill only from creation time; dropped MVs lose all accumulated state
+
+### Recommended split for this project
+
+| Category | Approach |
+|---|---|
+| Routing MVs (`fleet_telemetry_raw`, etc.) | Persistent — cheap, always needed |
+| Always-on analytics (`high_severity_alerts`, `vehicle_speeds`) | Persistent |
+| Per-vehicle deep-dive, incident-scoped JOINs | Dynamic — create on demand, drop when done |
+| One-off lookups | Direct `SELECT` — no MV needed |

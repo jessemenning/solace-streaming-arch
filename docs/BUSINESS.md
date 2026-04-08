@@ -274,6 +274,8 @@ Kafka-native connectors and consumers.
 - **Sink connectors:** RisingWave can push results to downstream systems (databases, dashboards,
   notification services) via Kafka Connect sink connectors — closing the loop from event to action.
 
-- **Solace Event Portal integration:** The topic hierarchy in this POC maps directly to
-  Event Portal events and schemas. Cataloging these events in Event Portal makes the
-  architecture discoverable and governable across teams.
+- **Solace Event Portal integration:** Complete. The Fleet Operations application domain
+  in Event Portal is the catalog of record for all events and schemas. `generate_mvs.py`
+  queries the EP catalog to regenerate RisingWave materialized views automatically —
+  adding a new event in EP and re-running the script produces a new live SQL view with
+  no manual SQL authoring required.

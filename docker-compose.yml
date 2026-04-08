@@ -25,6 +25,7 @@ services:
       - username_admin_password=admin
       - system_scaling_maxconnectioncount=100
     shm_size: "1g"
+    stop_grace_period: 20s
     ulimits:
       core:
         soft: 1
@@ -117,7 +118,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - "psql -h localhost -p 4566 -U root -d dev -c 'SELECT 1' > /dev/null 2>&1 || exit 1"
+        - "bash -c 'echo > /dev/tcp/localhost/4566' 2>/dev/null || exit 1"
       interval: 10s
       timeout: 5s
       retries: 20
@@ -146,7 +147,7 @@ services:
   # ─── Fleet Operations AI (agentic demo UI) ───────────────────────────────
   fleet-agent:
     build:
-      context: ./demo/agent_demo
+      context: ./demo
       dockerfile: Dockerfile
     container_name: fleet-agent
     hostname: fleet-agent
@@ -154,7 +155,7 @@ services:
       - streaming-net
     ports:
       - "8090:8090"
-    env_file: ./demo/agent_demo/.env
+    env_file: ./.env
     environment:
       RW_HOST: risingwave   # override localhost → Docker internal hostname
       RW_PORT: "4566"
@@ -169,6 +170,24 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  # ─── Event Portal setup (idempotent — creates domain/schemas/events/apps) ──
+  # Runs once: 1) create EP objects  2) generate init.sql  3) apply to RisingWave
+  ep-setup:
+    build:
+      context: .
+      dockerfile: config/ep-setup/Dockerfile
+    container_name: ep-setup
+    networks:
+      - streaming-net
+    env_file: ./.env
+    environment:
+      RW_HOST: risingwave
+      RW_PORT: "4566"
+    depends_on:
+      risingwave:
+        condition: service_healthy
+    restart: "no"
 
   # ─── Kafka Connect (Solace → Redpanda bridge) ─────────────────────────────
   kafka-connect:

@@ -1,0 +1,256 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#03213B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#04182C;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ABFF88;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00C895;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="barLow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ABFF88;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00C895;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="barMed" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FFF7C2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FCA829;stop-opacity:0.8" />
+    </linearGradient>
+    <linearGradient id="barHigh" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FCA829;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E8831A;stop-opacity:1" />
+    </linearGradient>
+    <filter id="panelShadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00C895"/>
+    </marker>
+    <marker id="arrowSky" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#C2F7FF"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#FCA829"/>
+    </marker>
+  </defs>
+
+  <!-- Root background -->
+  <rect width="900" height="600" fill="url(#bgGrad)"/>
+
+  <!-- Title block -->
+  <text x="450" y="38" font-family="Figtree, Segoe UI, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.3">Real-Time Fleet Intelligence</text>
+  <text x="450" y="58" font-family="'Courier New', 'Space Mono', monospace" font-size="11" fill="#C2F7FF" text-anchor="middle" letter-spacing="1">RisingWave Materialized Views — Architecture</text>
+
+  <!-- Divider line under title -->
+  <line x1="60" y1="70" x2="840" y2="70" stroke="#093B5F" stroke-width="1.5"/>
+
+  <!-- ═══════════════════════════════════════════
+       PANEL 1: One Pipeline, Infinite Views
+  ═══════════════════════════════════════════ -->
+  <rect x="20" y="82" width="270" height="498" rx="12" fill="#093B5F" filter="url(#panelShadow)"/>
+
+  <!-- Panel 1 header -->
+  <rect x="20" y="82" width="270" height="44" rx="12" fill="#00C895"/>
+  <rect x="20" y="112" width="270" height="14" fill="#00C895"/>
+  <text x="155" y="110" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#03213B" text-anchor="middle">One Pipeline, Infinite Views</text>
+
+  <!-- Solace Platform node -->
+  <rect x="52" y="148" width="206" height="68" rx="8" fill="#03213B" stroke="#00C895" stroke-width="1.5"/>
+  <rect x="52" y="148" width="206" height="5" rx="4" fill="#00C895"/>
+  <text x="155" y="178" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">Solace Platform</text>
+  <text x="155" y="197" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">pub/sub · fan-out · routing</text>
+  <text x="155" y="210" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">20 vehicles · fleet/ topics</text>
+
+  <!-- Arrow Solace → Redpanda -->
+  <line x1="155" y1="216" x2="155" y2="252" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <rect x="117" y="226" width="76" height="16" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="155" y="238" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">SMF bridge</text>
+
+  <!-- Redpanda node -->
+  <rect x="52" y="252" width="206" height="68" rx="8" fill="#03213B" stroke="#ABFF88" stroke-width="1.5"/>
+  <rect x="52" y="252" width="206" height="5" rx="4" fill="#ABFF88"/>
+  <text x="155" y="283" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">Redpanda</text>
+  <text x="155" y="300" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">durable log · fleet-events</text>
+  <text x="155" y="313" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">single topic · replayable</text>
+
+  <!-- Arrow Redpanda → RisingWave -->
+  <line x1="155" y1="320" x2="155" y2="356" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <rect x="101" y="330" width="108" height="16" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="155" y="342" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">Kafka protocol</text>
+
+  <!-- RisingWave node -->
+  <rect x="52" y="356" width="206" height="68" rx="8" fill="#03213B" stroke="#C2F7FF" stroke-width="1.5"/>
+  <rect x="52" y="356" width="206" height="5" rx="4" fill="#C2F7FF"/>
+  <text x="155" y="387" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">RisingWave</text>
+  <text x="155" y="404" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">streaming SQL · always-on</text>
+  <text x="155" y="417" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">incremental views</text>
+
+  <!-- Key insight box -->
+  <rect x="38" y="448" width="234" height="60" rx="8" fill="#03213B" stroke="#00C895" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="155" y="468" font-family="Figtree, Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#ABFF88" text-anchor="middle">No ETL. No data copies.</text>
+  <text x="155" y="484" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">One stream — infinite query</text>
+  <text x="155" y="498" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">lenses on top of it.</text>
+
+  <!-- Panel 1 bottom note -->
+  <text x="155" y="560" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">fleet_all_raw → unified source</text>
+  <text x="155" y="573" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">SQL filters replace topic wildcards</text>
+
+
+  <!-- ═══════════════════════════════════════════
+       PANEL 2: Two Tiers of Intelligence
+  ═══════════════════════════════════════════ -->
+  <rect x="308" y="82" width="290" height="498" rx="12" fill="#093B5F" filter="url(#panelShadow)"/>
+
+  <!-- Panel 2 header -->
+  <rect x="308" y="82" width="290" height="44" rx="12" fill="#093B5F" stroke="#C2F7FF" stroke-width="1.5"/>
+  <rect x="308" y="112" width="290" height="14" fill="#093B5F"/>
+  <text x="453" y="110" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#C2F7FF" text-anchor="middle">Two Tiers of Intelligence</text>
+
+  <!-- TIER 1: Always-On -->
+  <rect x="325" y="140" width="256" height="180" rx="10" fill="#03213B" stroke="#00C895" stroke-width="2"/>
+  <!-- Tier 1 header bar -->
+  <rect x="325" y="140" width="256" height="32" rx="10" fill="#00C895"/>
+  <rect x="325" y="160" width="256" height="12" fill="#00C895"/>
+  <text x="453" y="161" font-family="Figtree, Segoe UI, sans-serif" font-size="12" font-weight="700" fill="#03213B" text-anchor="middle">Always-On Views</text>
+
+  <!-- Tier 1 items -->
+  <rect x="338" y="180" width="230" height="22" rx="4" fill="#093B5F"/>
+  <circle cx="352" cy="191" r="4" fill="#00C895"/>
+  <text x="362" y="195" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#FFFFFF">Routing (telemetry · events · cmds)</text>
+
+  <rect x="338" y="207" width="230" height="22" rx="4" fill="#093B5F"/>
+  <circle cx="352" cy="218" r="4" fill="#00C895"/>
+  <text x="362" y="222" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#FFFFFF">Speed · Fuel · Engine Temp</text>
+
+  <rect x="338" y="234" width="230" height="22" rx="4" fill="#093B5F"/>
+  <circle cx="352" cy="245" r="4" fill="#00C895"/>
+  <text x="362" y="249" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#FFFFFF">Alert Summary (high/med/low)</text>
+
+  <rect x="338" y="261" width="230" height="22" rx="4" fill="#093B5F"/>
+  <circle cx="352" cy="272" r="4" fill="#00C895"/>
+  <text x="362" y="276" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#FFFFFF">5-min Speed Avg (windowed)</text>
+
+  <!-- Tier 1 cost tag -->
+  <rect x="338" y="294" width="230" height="18" rx="4" fill="#00C895" opacity="0.15" stroke="#00C895" stroke-width="0.8"/>
+  <text x="453" y="307" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">~4–8 actors each  ·  instant query latency</text>
+
+  <!-- Dynamic DDL Toggle -->
+  <line x1="453" y1="320" x2="453" y2="362" stroke="#FCA829" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowOrange)"/>
+  <!-- Toggle icon -->
+  <rect x="415" y="328" width="76" height="26" rx="13" fill="#03213B" stroke="#FCA829" stroke-width="1.5"/>
+  <circle cx="445" cy="341" r="9" fill="#FCA829" opacity="0.3"/>
+  <circle cx="445" cy="341" r="5" fill="#FCA829"/>
+  <rect x="423" y="336" width="18" height="10" rx="5" fill="#03213B"/>
+  <!-- DDL label -->
+  <rect x="398" y="352" width="110" height="14" rx="3" fill="#03213B" opacity="0.85"/>
+  <text x="453" y="362" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#FCA829" text-anchor="middle">Dynamic DDL</text>
+
+  <!-- TIER 2: On-Demand -->
+  <rect x="325" y="368" width="256" height="168" rx="10" fill="#03213B" stroke="#FCA829" stroke-width="1.5" stroke-dasharray="7,4"/>
+  <!-- Tier 2 header bar -->
+  <rect x="325" y="368" width="256" height="32" rx="10" fill="#03213B" stroke="#FCA829" stroke-width="1.5"/>
+  <rect x="325" y="388" width="256" height="12" fill="#03213B"/>
+  <text x="453" y="389" font-family="Figtree, Segoe UI, sans-serif" font-size="12" font-weight="700" fill="#FCA829" text-anchor="middle">On-Demand Views</text>
+
+  <!-- Tier 2 items -->
+  <rect x="338" y="408" width="230" height="22" rx="4" fill="#093B5F" opacity="0.6"/>
+  <circle cx="352" cy="419" r="4" fill="#FCA829" opacity="0.7"/>
+  <text x="362" y="423" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">Per-vehicle deep dive</text>
+
+  <rect x="338" y="434" width="230" height="22" rx="4" fill="#093B5F" opacity="0.6"/>
+  <circle cx="352" cy="445" r="4" fill="#FCA829" opacity="0.7"/>
+  <text x="362" y="449" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">Incident JOIN (stream ⋈ context)</text>
+
+  <rect x="338" y="460" width="230" height="22" rx="4" fill="#093B5F" opacity="0.6"/>
+  <circle cx="352" cy="471" r="4" fill="#FCA829" opacity="0.7"/>
+  <text x="362" y="475" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">Scheduled batch report</text>
+
+  <!-- Tier 2 cost tag -->
+  <rect x="338" y="492" width="230" height="30" rx="4" fill="#FCA829" opacity="0.1" stroke="#FCA829" stroke-width="0.8"/>
+  <text x="453" y="506" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#FCA829" text-anchor="middle">zero cost at rest</text>
+  <text x="453" y="519" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#FCA829" text-anchor="middle">spun up only when needed</text>
+
+  <!-- Panel 2 bottom label -->
+  <text x="453" y="563" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">CREATE / DROP MATERIALIZED VIEW</text>
+  <text x="453" y="575" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">is the cost control mechanism</text>
+
+
+  <!-- ═══════════════════════════════════════════
+       PANEL 3: The Scaling Lever
+  ═══════════════════════════════════════════ -->
+  <rect x="616" y="82" width="264" height="498" rx="12" fill="#093B5F" filter="url(#panelShadow)"/>
+
+  <!-- Panel 3 header -->
+  <rect x="616" y="82" width="264" height="44" rx="12" fill="#FCA829"/>
+  <rect x="616" y="112" width="264" height="14" fill="#FCA829"/>
+  <text x="748" y="110" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#03213B" text-anchor="middle">The Scaling Lever</text>
+
+  <!-- Chart title -->
+  <text x="748" y="150" font-family="Figtree, Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#C2F7FF" text-anchor="middle">Actor Cost by View Complexity</text>
+  <text x="748" y="165" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">actors = compute units consumed</text>
+
+  <!-- Bar chart background grid -->
+  <rect x="636" y="178" width="224" height="180" rx="6" fill="#03213B"/>
+  <!-- Grid lines -->
+  <line x1="636" y1="238" x2="860" y2="238" stroke="#093B5F" stroke-width="1"/>
+  <line x1="636" y1="298" x2="860" y2="298" stroke="#093B5F" stroke-width="1"/>
+  <!-- Y-axis labels -->
+  <text x="630" y="242" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#C2F7FF" text-anchor="end">8</text>
+  <text x="630" y="302" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#C2F7FF" text-anchor="end">4</text>
+  <text x="630" y="358" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#C2F7FF" text-anchor="end">0</text>
+
+  <!-- Bar 1: Filter/Routing — LOW (4 actors) -->
+  <rect x="653" y="298" width="46" height="60" rx="3" fill="url(#barLow)"/>
+  <text x="676" y="292" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#ABFF88" text-anchor="middle">4</text>
+  <text x="676" y="371" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="middle">Filter</text>
+  <text x="676" y="381" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="middle">Routing</text>
+
+  <!-- Bar 2: Aggregation — MEDIUM (8 actors) -->
+  <rect x="722" y="238" width="46" height="120" rx="3" fill="url(#barMed)"/>
+  <text x="745" y="232" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#FCA829" text-anchor="middle">8</text>
+  <text x="745" y="371" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="middle">Aggreg-</text>
+  <text x="745" y="381" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="middle">ation</text>
+
+  <!-- Bar 3: JOIN/Window — HIGH (16 actors) -->
+  <rect x="791" y="178" width="46" height="180" rx="3" fill="url(#barHigh)"/>
+  <text x="814" y="172" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#FCA829" text-anchor="middle">16</text>
+  <text x="814" y="371" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="middle">JOIN /</text>
+  <text x="814" y="381" font-family="'Courier New', 'Space Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="middle">Window</text>
+
+  <!-- X-axis line -->
+  <line x1="636" y1="358" x2="860" y2="358" stroke="#C2F7FF" stroke-width="1"/>
+
+  <!-- Cost insight callout -->
+  <rect x="630" y="392" width="250" height="60" rx="8" fill="#03213B" stroke="#FCA829" stroke-width="1.5"/>
+  <text x="748" y="411" font-family="Figtree, Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#FCA829" text-anchor="middle">Cost Control Strategy</text>
+  <text x="748" y="427" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">Keep always-on views cheap.</text>
+  <text x="748" y="441" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">Spin up heavy JOINs on demand.</text>
+
+  <!-- Cluster growth callout -->
+  <rect x="630" y="464" width="250" height="52" rx="8" fill="#03213B" stroke="#00C895" stroke-width="1"/>
+  <text x="748" y="483" font-family="Figtree, Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#ABFF88" text-anchor="middle">Grows With You</text>
+  <text x="748" y="498" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#C2F7FF" text-anchor="middle">Raise actor limits in config</text>
+  <text x="748" y="511" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#C2F7FF" text-anchor="middle">as fleet and cluster scale.</text>
+
+  <!-- Panel 3 bottom -->
+  <text x="748" y="560" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">streaming_parallelism = actor count</text>
+  <text x="748" y="573" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">tunable per materialized view</text>
+
+
+  <!-- ═══════════════════════════════════════════
+       Cross-panel arrows (Pipeline → Panel 2)
+  ═══════════════════════════════════════════ -->
+  <!-- Arrow from RisingWave block (panel 1) to Panel 2 center -->
+  <line x1="290" y1="390" x2="322" y2="390" stroke="#C2F7FF" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrowSky)"/>
+  <rect x="279" y="379" width="53" height="14" rx="3" fill="#03213B" opacity="0.85"/>
+  <text x="305" y="390" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#C2F7FF" text-anchor="middle">views</text>
+
+  <!-- Arrow from Panel 2 to Panel 3 -->
+  <line x1="600" y1="300" x2="612" y2="300" stroke="#FCA829" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <rect x="570" y="289" width="54" height="14" rx="3" fill="#03213B" opacity="0.85"/>
+  <text x="597" y="300" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#FCA829" text-anchor="middle">actors</text>
+
+  <!-- Bottom footer strip -->
+  <line x1="20" y1="584" x2="880" y2="584" stroke="#093B5F" stroke-width="1"/>
+  <text x="450" y="597" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#C2F7FF" text-anchor="middle" opacity="0.7">Solace Platform  ·  Redpanda  ·  RisingWave  —  Fleet Streaming POC</text>
+</svg>
