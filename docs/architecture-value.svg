@@ -21,7 +21,7 @@
 
   <!-- ===== ROW 1: Header (y=0 to y=80) ===== -->
   <text x="600" y="38" class="title">From Event Routing to Event Intelligence</text>
-  <text x="600" y="62" class="subtitle">Solace Platform + Redpanda + RisingWave</text>
+  <text x="600" y="62" class="subtitle">Solace Platform + RisingWave</text>
 
   <!-- Thin separator line under header -->
   <line x1="80" y1="76" x2="1120" y2="76" stroke="#ABFF88" stroke-width="1" opacity="0.4"/>
@@ -212,19 +212,10 @@
   <text x="240" y="691" font-family="'Figtree','Segoe UI',sans-serif" font-size="11px" fill="#FFFFFF" text-anchor="middle">Real-time pub/sub routing</text>
   <text x="240" y="704" font-family="'Space Mono',monospace" font-size="9px" fill="#ABFF88" text-anchor="middle">Low-latency · rich topics · fan-out</text>
 
-  <!-- Arrow 1 -->
-  <line x1="380" y1="680" x2="440" y2="680" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
-  <rect x="393" y="670" width="34" height="14" fill="#03213B" opacity="0.75" rx="3"/>
-  <text x="410" y="681" font-family="'Space Mono',monospace" font-size="8px" fill="#00C895" text-anchor="middle">Kafka</text>
-
-  <text x="600" y="673" font-family="'Figtree','Segoe UI',sans-serif" font-size="13px" font-weight="bold" fill="#ABFF88" text-anchor="middle">Redpanda</text>
-  <text x="600" y="691" font-family="'Figtree','Segoe UI',sans-serif" font-size="11px" fill="#FFFFFF" text-anchor="middle">Durable event log</text>
-  <text x="600" y="704" font-family="'Space Mono',monospace" font-size="9px" fill="#ABFF88" text-anchor="middle">Replayable · append-only · Kafka API</text>
-
-  <!-- Arrow 2 -->
-  <line x1="740" y1="680" x2="800" y2="680" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
-  <rect x="749" y="670" width="42" height="14" fill="#03213B" opacity="0.75" rx="3"/>
-  <text x="770" y="681" font-family="'Space Mono',monospace" font-size="8px" fill="#00C895" text-anchor="middle">SQL CDC</text>
+  <!-- Arrow 1 (direct: Solace → RisingWave via RDP) -->
+  <line x1="380" y1="680" x2="800" y2="680" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <rect x="556" y="668" width="88" height="16" fill="#03213B" opacity="0.75" rx="3"/>
+  <text x="600" y="680" font-family="'Space Mono',monospace" font-size="8px" fill="#00C895" text-anchor="middle">RDP / HTTP POST</text>
 
   <text x="960" y="673" font-family="'Figtree','Segoe UI',sans-serif" font-size="13px" font-weight="bold" fill="#ABFF88" text-anchor="middle">RisingWave</text>
   <text x="960" y="691" font-family="'Figtree','Segoe UI',sans-serif" font-size="11px" fill="#FFFFFF" text-anchor="middle">Streaming analytics</text>

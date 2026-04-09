@@ -1,274 +1,257 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
   <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#00C895"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#FCA829"/>
     </marker>
   </defs>
 
   <!-- Background -->
-  <rect width="1200" height="760" fill="#03213B"/>
+  <rect width="1200" height="800" fill="#03213B"/>
 
   <!-- Title -->
-  <text x="600" y="48" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="24" font-weight="bold" fill="#ABFF88">Real-Time Event Intelligence</text>
-
+  <text x="600" y="44" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="24" font-weight="bold" fill="#ABFF88">Real-Time Event Intelligence</text>
   <!-- Subtitle -->
-  <text x="600" y="74" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="14" fill="#FFFFFF">Solace Platform + Redpanda + RisingWave</text>
+  <text x="600" y="68" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="13" fill="#FFFFFF">Solace Platform — micro-targeted streams and deep analytical context from one event fabric</text>
 
-  <!-- Event Portal governance banner -->
-  <rect x="310" y="88" width="870" height="24" rx="6" fill="#03213B" stroke="#FCA829" stroke-width="1.2" stroke-dasharray="5,3"/>
-  <circle cx="335" cy="100" r="6" fill="#FCA829" opacity="0.8"/>
-  <text x="350" y="104" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="9.5" fill="#FCA829">Solace Event Portal</text>
-  <text x="478" y="104" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="9.5" fill="#FFFFFF" opacity="0.85"> — event catalog &amp; schema governance: define an event once, new analytics views appear automatically</text>
+  <!-- Event Portal banner -->
+  <rect x="30" y="82" width="1140" height="24" rx="6" fill="#03213B" stroke="#FCA829" stroke-width="1.2" stroke-dasharray="5,3"/>
+  <circle cx="56" cy="94" r="6" fill="#FCA829" opacity="0.8"/>
+  <text x="70" y="98" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9.5" fill="#FCA829">Solace Event Portal</text>
+  <text x="198" y="98" font-family="'Figtree','Segoe UI',sans-serif" font-size="9.5" fill="#FFFFFF" opacity="0.85"> — event catalog &amp; schema governance: every event defined once, every consumer sees only what it needs</text>
 
-  <!-- Tick from banner to Panel 4 -->
-  <line x1="1035" y1="112" x2="1035" y2="118" stroke="#FCA829" stroke-width="1" stroke-dasharray="3,2" opacity="0.7"/>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL 1 — Event Sources (left)                         -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="30" y="116" width="210" height="240" rx="12" fill="#093B5F"/>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- PANEL 1 — Data Sources                      -->
-  <!-- ─────────────────────────────────────────── -->
-  <rect x="30" y="120" width="240" height="280" rx="12" fill="#093B5F"/>
-
-  <!-- Icon area -->
-  <rect x="50" y="138" width="200" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
-
-  <!-- Vehicle icons (3 rows of small trucks) -->
-  <!-- Row 1: 4 trucks -->
+  <!-- Truck icon area -->
+  <rect x="48" y="132" width="174" height="82" rx="8" fill="#ABFF88" opacity="0.12"/>
+  <!-- Row 1 trucks -->
   <g fill="#ABFF88" opacity="0.9">
-    <!-- truck shape: body + cab + wheels -->
-    <!-- truck 1 -->
-    <rect x="60" y="153" width="28" height="14" rx="2"/>
-    <rect x="76" y="147" width="12" height="8" rx="2"/>
-    <circle cx="65" cy="169" r="4"/>
-    <circle cx="82" cy="169" r="4"/>
-    <!-- truck 2 -->
-    <rect x="102" y="153" width="28" height="14" rx="2"/>
-    <rect x="118" y="147" width="12" height="8" rx="2"/>
-    <circle cx="107" cy="169" r="4"/>
-    <circle cx="124" cy="169" r="4"/>
-    <!-- truck 3 -->
-    <rect x="144" y="153" width="28" height="14" rx="2"/>
-    <rect x="160" y="147" width="12" height="8" rx="2"/>
-    <circle cx="149" cy="169" r="4"/>
-    <circle cx="166" cy="169" r="4"/>
-    <!-- truck 4 -->
-    <rect x="186" y="153" width="28" height="14" rx="2"/>
-    <rect x="202" y="147" width="12" height="8" rx="2"/>
-    <circle cx="191" cy="169" r="4"/>
-    <circle cx="208" cy="169" r="4"/>
-    <!-- Row 2: 4 trucks -->
-    <rect x="60" y="182" width="28" height="14" rx="2"/>
-    <rect x="76" y="176" width="12" height="8" rx="2"/>
-    <circle cx="65" cy="198" r="4"/>
-    <circle cx="82" cy="198" r="4"/>
-
-    <rect x="102" y="182" width="28" height="14" rx="2"/>
-    <rect x="118" y="176" width="12" height="8" rx="2"/>
-    <circle cx="107" cy="198" r="4"/>
-    <circle cx="124" cy="198" r="4"/>
-
-    <rect x="144" y="182" width="28" height="14" rx="2"/>
-    <rect x="160" y="176" width="12" height="8" rx="2"/>
-    <circle cx="149" cy="198" r="4"/>
-    <circle cx="166" cy="198" r="4"/>
-
-    <rect x="186" y="182" width="28" height="14" rx="2"/>
-    <rect x="202" y="176" width="12" height="8" rx="2"/>
-    <circle cx="191" cy="198" r="4"/>
-    <circle cx="208" cy="198" r="4"/>
-    <!-- Row 3: 4 trucks -->
-    <rect x="60" y="211" width="28" height="14" rx="2"/>
-    <rect x="76" y="205" width="12" height="8" rx="2"/>
-    <circle cx="65" cy="227" r="4"/>
-    <circle cx="82" cy="227" r="4"/>
-
-    <rect x="102" y="211" width="28" height="14" rx="2"/>
-    <rect x="118" y="205" width="12" height="8" rx="2"/>
-    <circle cx="107" cy="227" r="4"/>
-    <circle cx="124" cy="227" r="4"/>
-
-    <rect x="144" y="211" width="28" height="14" rx="2"/>
-    <rect x="160" y="205" width="12" height="8" rx="2"/>
-    <circle cx="149" cy="227" r="4"/>
-    <circle cx="166" cy="227" r="4"/>
-
-    <rect x="186" y="211" width="28" height="14" rx="2"/>
-    <rect x="202" y="205" width="12" height="8" rx="2"/>
-    <circle cx="191" cy="227" r="4"/>
-    <circle cx="208" cy="227" r="4"/>
+    <rect x="60" y="148" width="26" height="13" rx="2"/>
+    <rect x="74" y="142" width="10" height="8" rx="2"/>
+    <circle cx="64" cy="163" r="4"/>
+    <circle cx="79" cy="163" r="4"/>
+    <rect x="100" y="148" width="26" height="13" rx="2"/>
+    <rect x="114" y="142" width="10" height="8" rx="2"/>
+    <circle cx="104" cy="163" r="4"/>
+    <circle cx="119" cy="163" r="4"/>
+    <rect x="140" y="148" width="26" height="13" rx="2"/>
+    <rect x="154" y="142" width="10" height="8" rx="2"/>
+    <circle cx="144" cy="163" r="4"/>
+    <circle cx="159" cy="163" r="4"/>
+    <!-- Row 2 trucks -->
+    <rect x="60" y="174" width="26" height="13" rx="2"/>
+    <rect x="74" y="168" width="10" height="8" rx="2"/>
+    <circle cx="64" cy="189" r="4"/>
+    <circle cx="79" cy="189" r="4"/>
+    <rect x="100" y="174" width="26" height="13" rx="2"/>
+    <rect x="114" y="168" width="10" height="8" rx="2"/>
+    <circle cx="104" cy="189" r="4"/>
+    <circle cx="119" cy="189" r="4"/>
+    <rect x="140" y="174" width="26" height="13" rx="2"/>
+    <rect x="154" y="168" width="10" height="8" rx="2"/>
+    <circle cx="144" cy="189" r="4"/>
+    <circle cx="159" cy="189" r="4"/>
   </g>
 
-  <!-- Panel 1 Title -->
-  <text x="150" y="252" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Data Sources</text>
+  <text x="135" y="234" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="15" font-weight="bold" fill="#FFFFFF">Event Sources</text>
+  <text x="135" y="253" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">IoT devices, applications,</text>
+  <text x="135" y="269" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">services — 20 vehicles</text>
+  <text x="135" y="285" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">publishing in real time</text>
 
-  <!-- Panel 1 Body -->
-  <text x="150" y="274" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Fleet of 20 vehicles</text>
-  <text x="150" y="290" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">publishing telemetry,</text>
-  <text x="150" y="306" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">alerts &amp; commands</text>
-  <text x="150" y="326" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">in real time</text>
+  <!-- Badge -->
+  <rect x="52" y="326" width="166" height="20" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="135" y="340" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#ABFF88">continuous event stream</text>
 
-  <!-- Highlight badge -->
-  <rect x="70" y="370" width="160" height="22" rx="5" fill="#00C895" opacity="0.2"/>
-  <text x="150" y="385" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">continuous data stream</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ARROW 1 → 2                                            -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <line x1="242" y1="236" x2="286" y2="236" stroke="#00C895" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="228" y="244" width="80" height="16" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="268" y="256" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895">publish events</text>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- ARROW 1→2                                   -->
-  <!-- ─────────────────────────────────────────── -->
-  <line x1="272" y1="260" x2="318" y2="260" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <rect x="267" y="270" width="76" height="18" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="305" y="283" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">publish events</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL 2 — Solace Platform (center, tall)               -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="290" y="116" width="210" height="420" rx="12" fill="#093B5F"/>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- PANEL 2 — Solace Platform                   -->
-  <!-- ─────────────────────────────────────────── -->
-  <rect x="320" y="120" width="240" height="280" rx="12" fill="#093B5F"/>
+  <!-- Hub/spoke icon -->
+  <rect x="308" y="132" width="174" height="82" rx="8" fill="#ABFF88" opacity="0.12"/>
+  <circle cx="395" cy="173" r="14" fill="none" stroke="#00C895" stroke-width="2.5"/>
+  <circle cx="395" cy="173" r="5" fill="#00C895"/>
+  <line x1="382" y1="161" x2="365" y2="147" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="361" cy="143" r="5" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="408" y1="161" x2="425" y2="147" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="429" cy="143" r="5" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="382" y1="185" x2="365" y2="199" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="361" cy="203" r="5" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="408" y1="185" x2="425" y2="199" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="429" cy="203" r="5" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="395" y1="159" x2="395" y2="143" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="395" cy="139" r="5" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <line x1="395" y1="187" x2="395" y2="203" stroke="#00C895" stroke-width="1.5"/>
+  <circle cx="395" cy="207" r="5" fill="none" stroke="#ABFF88" stroke-width="2"/>
 
-  <!-- Icon area -->
-  <rect x="340" y="138" width="200" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+  <text x="395" y="238" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="15" font-weight="bold" fill="#FFFFFF">Solace Platform</text>
+  <text x="395" y="257" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">Routes every event to the</text>
+  <text x="395" y="273" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">right consumer — instantly,</text>
+  <text x="395" y="289" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">reliably, at scale</text>
 
-  <!-- Network node symbol: central hub + spokes -->
-  <circle cx="450" cy="183" r="14" fill="none" stroke="#00C895" stroke-width="2.5"/>
-  <circle cx="450" cy="183" r="5" fill="#00C895"/>
-  <!-- spokes to satellite nodes -->
-  <line x1="436" y1="170" x2="418" y2="156" stroke="#00C895" stroke-width="1.5"/>
-  <circle cx="414" cy="152" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
-  <line x1="464" y1="170" x2="482" y2="156" stroke="#00C895" stroke-width="1.5"/>
-  <circle cx="486" cy="152" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
-  <line x1="436" y1="196" x2="418" y2="210" stroke="#00C895" stroke-width="1.5"/>
-  <circle cx="414" cy="214" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
-  <line x1="464" y1="196" x2="482" y2="210" stroke="#00C895" stroke-width="1.5"/>
-  <circle cx="486" cy="214" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
-  <!-- top and bottom spokes -->
-  <line x1="450" y1="169" x2="450" y2="151" stroke="#00C895" stroke-width="1.5"/>
-  <circle cx="450" cy="147" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
-  <line x1="450" y1="197" x2="450" y2="215" stroke="#00C895" stroke-width="1.5"/>
-  <circle cx="450" cy="219" r="6" fill="none" stroke="#ABFF88" stroke-width="2"/>
+  <!-- Divider -->
+  <line x1="310" y1="308" x2="480" y2="308" stroke="#00C895" stroke-width="0.5" opacity="0.4"/>
 
-  <!-- Panel 2 Title -->
-  <text x="440" y="252" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Solace Platform</text>
+  <!-- RDP sub-section inside Solace panel -->
+  <text x="395" y="328" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FCA829">REST Delivery Point</text>
+  <text x="395" y="344" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.85">Built-in HTTP bridge — no</text>
+  <text x="395" y="358" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.85">custom connector code</text>
 
-  <!-- Panel 2 Body -->
-  <text x="440" y="274" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Routes events to the right</text>
-  <text x="440" y="290" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">consumers — instantly,</text>
-  <text x="440" y="306" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">reliably, at scale</text>
+  <!-- Divider -->
+  <line x1="310" y1="374" x2="480" y2="374" stroke="#00C895" stroke-width="0.5" opacity="0.4"/>
 
-  <!-- Highlight badge -->
-  <rect x="355" y="370" width="168" height="22" rx="5" fill="#00C895" opacity="0.2"/>
-  <text x="439" y="385" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">sub-millisecond routing</text>
+  <!-- Badge sub-millisecond -->
+  <rect x="312" y="380" width="166" height="20" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="395" y="394" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#ABFF88">sub-millisecond routing</text>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- ARROW 2→3                                   -->
-  <!-- ─────────────────────────────────────────── -->
-  <line x1="562" y1="260" x2="608" y2="260" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <rect x="553" y="270" width="88" height="18" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="597" y="283" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">bridge connector</text>
+  <!-- Fan-out label -->
+  <text x="395" y="420" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.6">Micro-targeted streams</text>
+  <text x="395" y="436" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.6">to every consumer type</text>
+  <text x="395" y="452" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.6">simultaneously</text>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- PANEL 3 — Redpanda                          -->
-  <!-- ─────────────────────────────────────────── -->
-  <rect x="610" y="120" width="240" height="280" rx="12" fill="#093B5F"/>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ARROWS 2 → consumer boxes (fan-out from right edge)    -->
+  <!-- Arrow to IoT Devices (y=162) -->
+  <line x1="502" y1="162" x2="546" y2="162" stroke="#00C895" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Arrow to Microservices (y=280) -->
+  <line x1="502" y1="280" x2="546" y2="280" stroke="#00C895" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Arrow to AI Agents (y=398) -->
+  <line x1="502" y1="398" x2="546" y2="398" stroke="#00C895" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- Icon area -->
-  <rect x="630" y="138" width="200" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+  <!-- Fan-out visual lines from Solace right edge -->
+  <!-- Vertical connector line on Solace right side -->
+  <line x1="502" y1="162" x2="502" y2="398" stroke="#00C895" stroke-width="1.5" opacity="0.5"/>
 
-  <!-- Database cylinder / log symbol -->
-  <ellipse cx="730" cy="158" rx="42" ry="12" fill="none" stroke="#00C895" stroke-width="2.5"/>
-  <rect x="688" y="158" width="84" height="52" fill="none" stroke="#00C895" stroke-width="2.5"/>
-  <ellipse cx="730" cy="210" rx="42" ry="12" fill="#093B5F" stroke="#00C895" stroke-width="2.5"/>
-  <!-- horizontal lines suggesting log entries -->
-  <line x1="698" y1="172" x2="762" y2="172" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
-  <line x1="698" y1="182" x2="762" y2="182" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
-  <line x1="698" y1="192" x2="762" y2="192" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
-  <line x1="698" y1="202" x2="762" y2="202" stroke="#ABFF88" stroke-width="1" opacity="0.7"/>
+  <!-- Labels on fan-out arrows -->
+  <rect x="504" y="150" width="88" height="14" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="548" y="161" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#00C895">field commands</text>
 
-  <!-- Panel 3 Title -->
-  <text x="730" y="252" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Durable Event Log</text>
+  <rect x="504" y="268" width="80" height="14" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="544" y="279" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#00C895">event triggers</text>
 
-  <!-- Subtitle product name -->
-  <text x="730" y="268" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#ABFF88">Redpanda</text>
+  <rect x="504" y="386" width="86" height="14" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="547" y="397" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#00C895">real-time alerts</text>
 
-  <!-- Panel 3 Body -->
-  <text x="730" y="286" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Every event recorded</text>
-  <text x="730" y="302" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">in order. Replay any</text>
-  <text x="730" y="318" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">window of history.</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- CONSUMER BOX 1 — IoT Devices / Field Systems           -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="550" y="116" width="280" height="100" rx="10" fill="#093B5F"/>
+  <!-- Sensor/wave icon -->
+  <circle cx="598" cy="152" r="8" fill="none" stroke="#00C895" stroke-width="2"/>
+  <path d="M582 152 Q590 138 598 152 Q606 166 614 152" fill="none" stroke="#ABFF88" stroke-width="1.5"/>
+  <circle cx="598" cy="152" r="3" fill="#00C895"/>
+  <text x="730" y="144" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="13" font-weight="bold" fill="#FFFFFF">IoT Devices &amp; Field Systems</text>
+  <text x="730" y="162" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">Actuate devices, trigger field responses</text>
+  <text x="730" y="178" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">on exactly the events they care about</text>
+  <rect x="573" y="190" width="234" height="16" rx="4" fill="#00C895" opacity="0.18"/>
+  <text x="690" y="202" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#ABFF88">instant, no polling</text>
 
-  <!-- Highlight badge -->
-  <rect x="648" y="370" width="162" height="22" rx="5" fill="#00C895" opacity="0.2"/>
-  <text x="729" y="385" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">zero data loss</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- CONSUMER BOX 2 — Microservices                         -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="550" y="234" width="280" height="100" rx="10" fill="#093B5F"/>
+  <!-- Services icon: 3 stacked rectangles -->
+  <rect x="576" y="258" width="28" height="7" rx="2" fill="#00C895" opacity="0.8"/>
+  <rect x="576" y="269" width="28" height="7" rx="2" fill="#ABFF88" opacity="0.8"/>
+  <rect x="576" y="280" width="28" height="7" rx="2" fill="#00C895" opacity="0.5"/>
+  <text x="730" y="262" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="13" font-weight="bold" fill="#FFFFFF">Microservices &amp; Applications</text>
+  <text x="730" y="280" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">Event-driven processing — each service</text>
+  <text x="730" y="296" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">subscribes only to what it needs</text>
+  <rect x="573" y="308" width="234" height="16" rx="4" fill="#00C895" opacity="0.18"/>
+  <text x="690" y="320" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#ABFF88">decoupled, independently scalable</text>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- ARROW 3→4                                   -->
-  <!-- ─────────────────────────────────────────── -->
-  <line x1="852" y1="260" x2="898" y2="260" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <rect x="845" y="270" width="82" height="18" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="886" y="283" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">streaming SQL</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- CONSUMER BOX 3 — AI Agents (dual-path)                 -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="550" y="352" width="280" height="130" rx="10" fill="#093B5F" stroke="#00C895" stroke-width="1.5"/>
+  <!-- Robot/agent icon -->
+  <rect x="574" y="374" width="20" height="16" rx="3" fill="none" stroke="#00C895" stroke-width="2"/>
+  <circle cx="579" cy="380" r="2.5" fill="#ABFF88"/>
+  <circle cx="588" cy="380" r="2.5" fill="#ABFF88"/>
+  <line x1="580" y1="390" x2="594" y2="390" stroke="#00C895" stroke-width="1.5"/>
+  <line x1="584" y1="390" x2="584" y2="396" stroke="#ABFF88" stroke-width="1.5"/>
+  <line x1="590" y1="390" x2="590" y2="396" stroke="#ABFF88" stroke-width="1.5"/>
+  <text x="730" y="378" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="13" font-weight="bold" fill="#FFFFFF">AI Agents</text>
+  <text x="730" y="396" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">React instantly to real-time alerts</text>
+  <text x="730" y="412" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">from Solace — then query RisingWave</text>
+  <text x="730" y="428" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">for pre-computed context</text>
+  <rect x="573" y="444" width="234" height="16" rx="4" fill="#00C895" opacity="0.2"/>
+  <text x="690" y="456" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#ABFF88">trigger + research, same fabric</text>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- PANEL 4 — RisingWave                        -->
-  <!-- ─────────────────────────────────────────── -->
-  <rect x="900" y="120" width="270" height="280" rx="12" fill="#093B5F"/>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL 4 — RisingWave (bottom right)                    -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="870" y="234" width="300" height="280" rx="12" fill="#093B5F"/>
 
-  <!-- Icon area -->
-  <rect x="920" y="138" width="230" height="90" rx="8" fill="#ABFF88" opacity="0.15"/>
+  <!-- Lens/magnifier icon with SQL bars -->
+  <rect x="888" y="250" width="264" height="88" rx="8" fill="#ABFF88" opacity="0.12"/>
+  <circle cx="1020" cy="294" r="28" fill="none" stroke="#00C895" stroke-width="2.5"/>
+  <rect x="1004" y="303" width="7" height="10" rx="1" fill="#ABFF88" opacity="0.9"/>
+  <rect x="1015" y="292" width="7" height="21" rx="1" fill="#00C895" opacity="0.9"/>
+  <rect x="1026" y="284" width="7" height="29" rx="1" fill="#ABFF88" opacity="0.9"/>
+  <line x1="1042" y1="316" x2="1056" y2="330" stroke="#00C895" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- Magnifier / lens icon with SQL bar chart inside -->
-  <circle cx="1025" cy="183" r="30" fill="none" stroke="#00C895" stroke-width="2.5"/>
-  <!-- small bar chart inside lens -->
-  <rect x="1008" y="192" width="7" height="10" rx="1" fill="#ABFF88" opacity="0.9"/>
-  <rect x="1019" y="182" width="7" height="20" rx="1" fill="#00C895" opacity="0.9"/>
-  <rect x="1030" y="175" width="7" height="27" rx="1" fill="#ABFF88" opacity="0.9"/>
-  <!-- handle -->
-  <line x1="1048" y1="206" x2="1063" y2="221" stroke="#00C895" stroke-width="3" stroke-linecap="round"/>
+  <text x="1020" y="360" text-anchor="middle" font-family="'New Spirit','Georgia',serif" font-size="15" font-weight="bold" fill="#FFFFFF">Streaming Analytics</text>
+  <text x="1020" y="378" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="12" fill="#ABFF88">RisingWave</text>
+  <text x="1020" y="398" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">Pre-computed views: averages,</text>
+  <text x="1020" y="414" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">joins, windows, geofences —</text>
+  <text x="1020" y="430" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF">always current, query in SQL</text>
 
-  <!-- Panel 4 Title -->
-  <text x="1035" y="252" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="16" font-weight="bold" fill="#FFFFFF">Streaming Intelligence</text>
+  <rect x="892" y="444" width="256" height="20" rx="5" fill="#00C895" opacity="0.2"/>
+  <text x="1020" y="458" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#ABFF88">new view = SQL query, not a sprint</text>
 
-  <!-- Subtitle product name -->
-  <text x="1035" y="268" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#ABFF88">RisingWave</text>
+  <!-- RisingWave feature list -->
+  <text x="892" y="486" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">• 5-min rolling speed averages</text>
+  <text x="892" y="500" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">• Multi-stream correlated joins</text>
+  <text x="892" y="514" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">• Geofence membership, fleet summaries</text>
 
-  <!-- Panel 4 Body -->
-  <text x="1035" y="286" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">SQL queries that update in</text>
-  <text x="1035" y="302" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">real time — no custom code,</text>
-  <text x="1035" y="318" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">no batch delays</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ARROW: Solace → RisingWave (RDP / bottom path)         -->
+  <!-- Goes down from Solace bottom, right to RisingWave      -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- Down from Solace bottom center -->
+  <line x1="395" y1="538" x2="395" y2="580" stroke="#FCA829" stroke-width="2"/>
+  <!-- Right to below RisingWave -->
+  <line x1="395" y1="580" x2="1020" y2="580" stroke="#FCA829" stroke-width="2"/>
+  <!-- Up to RisingWave bottom -->
+  <line x1="1020" y1="580" x2="1020" y2="516" stroke="#FCA829" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <!-- Label -->
+  <rect x="630" y="568" width="160" height="16" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="710" y="580" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FCA829">REST Delivery Point (built-in)</text>
 
-  <!-- Highlight badge -->
-  <rect x="920" y="370" width="230" height="22" rx="5" fill="#00C895" opacity="0.2"/>
-  <text x="1035" y="385" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#ABFF88">new view = SQL query, not a sprint</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ARROW: AI Agents → RisingWave (deep research)          -->
+  <!-- Horizontal from right edge of AI Agents box to RW left -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <line x1="832" y1="417" x2="868" y2="417" stroke="#00C895" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="826" y="424" width="106" height="14" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="879" y="435" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8.5" fill="#00C895">deep research</text>
 
-  <!-- ─────────────────────────────────────────── -->
-  <!-- ARROWS from Panel 4 down to outputs         -->
-  <!-- ─────────────────────────────────────────── -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- BOTTOM CAPTION                                         -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <text x="600" y="625" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF" opacity="0.6">The same event fabric delivers instant triggers to every consumer and powers deep analytical context for AI — no separate pipeline required.</text>
 
-  <!-- Vertical from panel 4 bottom center down -->
-  <line x1="1035" y1="402" x2="1035" y2="452" stroke="#00C895" stroke-width="2"/>
-  <!-- Split left to Dashboards -->
-  <line x1="1035" y1="452" x2="710" y2="452" stroke="#00C895" stroke-width="2"/>
-  <line x1="710" y1="452" x2="710" y2="480" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <!-- Split right to AI Agents -->
-  <line x1="1035" y1="452" x2="1035" y2="480" stroke="#00C895" stroke-width="2" marker-end="url(#arrowhead)"/>
-
-  <!-- Arrow label "real-time answers" centered on horizontal branch -->
-  <rect x="826" y="440" width="130" height="18" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="891" y="453" text-anchor="middle" font-family="'Space Mono', 'Cascadia Mono', monospace" font-size="10" fill="#00C895">real-time answers</text>
-
-  <!-- ─────────────────────────────────────────── -->
-  <!-- BOTTOM OUTPUT BOXES                         -->
-  <!-- ─────────────────────────────────────────── -->
-
-  <!-- Dashboards & Alerts box -->
-  <rect x="560" y="480" width="300" height="80" rx="10" fill="#093B5F"/>
-  <text x="710" y="513" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="15" font-weight="bold" fill="#FFFFFF">Dashboards &amp; Alerts</text>
-  <text x="710" y="534" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Live operational views and</text>
-  <text x="710" y="550" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">automated notifications</text>
-
-  <!-- AI Agents box — accent border -->
-  <rect x="880" y="480" width="300" height="80" rx="10" fill="#093B5F" stroke="#00C895" stroke-width="2"/>
-  <text x="1030" y="513" text-anchor="middle" font-family="'New Spirit', 'Georgia', serif" font-size="15" font-weight="bold" fill="#FFFFFF">AI Agents</text>
-  <text x="1030" y="534" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">Query pre-computed views —</text>
-  <text x="1030" y="550" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="12" fill="#FFFFFF">answers without raw-stream noise</text>
-
-  <!-- ─────────────────────────────────────────── -->
-  <!-- BOTTOM CAPTION                              -->
-  <!-- ─────────────────────────────────────────── -->
-  <text x="600" y="610" text-anchor="middle" font-family="'Figtree', 'Segoe UI', sans-serif" font-size="11" fill="#FFFFFF" opacity="0.6">Every layer is independently scalable. The architecture survives any single component failure.</text>
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- LEGEND (bottom right)                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <rect x="870" y="640" width="300" height="80" rx="8" fill="#03213B" opacity="0.6"/>
+  <text x="1020" y="660" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FFFFFF" opacity="0.7">Legend</text>
+  <line x1="888" y1="674" x2="920" y2="674" stroke="#00C895" stroke-width="2"/>
+  <text x="928" y="678" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">Real-time event stream</text>
+  <line x1="888" y1="694" x2="920" y2="694" stroke="#FCA829" stroke-width="2"/>
+  <text x="928" y="698" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">REST Delivery Point (built-in)</text>
 
 </svg>

@@ -12,7 +12,7 @@ changing the topic hierarchy — which means changing producers, consumers, and 
 in concert.
 
 This POC demonstrates a different approach: **use the broker for what it's best at, use
-streaming SQL for what it's best at, and connect them with a durable log.**
+streaming SQL for what it's best at, and connect them directly.**
 
 ---
 
@@ -23,10 +23,7 @@ IoT devices / applications
         │  publish events
         ▼
   Solace Platform          ← real-time routing, fan-out, guaranteed delivery
-        │  bridge connector
-        ▼
-     Redpanda              ← durable, replayable log of every event
-        │  streaming SQL
+        │  REST Delivery Point (built-in, no connector code)
         ▼
     RisingWave             ← "virtual topics" — any slice of data, expressed as SQL
         │
@@ -38,9 +35,10 @@ IoT devices / applications
 to the right consumers, handles guaranteed delivery, and enforces access control.
 Nothing about this architecture changes how Solace works for the systems already connected to it.
 
-**Redpanda** is the flight recorder. Every event is written to an immutable, replayable log.
-This gives the analytics layer time to catch up after restarts, replay history for new views,
-and audit every event that ever occurred.
+**The REST Delivery Point** is a built-in Solace capability — no custom connector code.
+Solace accumulates messages in a durable queue, then HTTP-POSTs each payload directly to
+RisingWave's webhook endpoint. Delivery is guaranteed: undelivered messages remain in the
+queue until RisingWave acknowledges receipt.
 
 **RisingWave** replaces topic subscriptions with SQL. Instead of designing a topic hierarchy
 that anticipates every future consumer, developers write SQL queries. A new analytical view
@@ -175,7 +173,7 @@ thousands of messages into the facts that matter.
 
 In deployments using Solace Agent Mesh (SAM), agents communicate over Solace Platform topics.
 This architecture extends that pattern: the same broker that routes agent-to-agent messages
-also bridges IoT and operational events into Redpanda, where RisingWave computes the
+also delivers IoT and operational events directly into RisingWave, which computes the
 situational awareness layer that agents query as tools. The result is a unified event fabric
 where real-world events and agent reasoning exist in the same architectural plane.
 
@@ -200,8 +198,8 @@ Concrete examples from Solace customer domains:
 | Manufacturing / Industry 4.0 | Sensor data routed to SCADA and historian | Multi-sensor correlation for predictive maintenance, OEE dashboards |
 
 In each case, the Solace Platform deployment continues to operate unchanged.
-The streaming SQL layer is additive — it consumes from the durable log without
-touching the broker's routing configuration or producer applications.
+The streaming SQL layer is additive — it consumes from the broker without
+touching the routing configuration or producer applications.
 
 ---
 
@@ -228,19 +226,20 @@ managing cluster configuration, and deploying JVM applications. Operational over
 is high and developer onboarding is slow. RisingWave exposes the same capability through
 standard PostgreSQL-compatible SQL — the same language most analysts and data engineers already know.
 
-### Why Redpanda instead of Kafka?
+### Why a direct RDP integration instead of a message queue intermediary?
 
-Redpanda is Kafka-compatible but eliminates the ZooKeeper dependency and has lower
-operational overhead. For a single-tenant POC or small-scale deployment, it reduces
-the infrastructure footprint significantly while remaining a drop-in replacement for
-Kafka-native connectors and consumers.
+Adding a broker intermediary (e.g., Kafka/Redpanda) between Solace and RisingWave adds
+operational complexity — another service to size, monitor, and fail. Solace Platform's
+built-in REST Delivery Point achieves the same durable, guaranteed delivery using a
+native queue and HTTP POST. No additional infrastructure, no connector plugins, no
+schema registry to maintain.
 
 ---
 
 ## What This POC Proves
 
-1. **The integration is real and working.** Solace Platform publishes, Kafka Connect bridges,
-   Redpanda stores, RisingWave queries — all running together in Docker Compose with a live
+1. **The integration is real and working.** Solace Platform publishes, the built-in RDP
+   delivers directly to RisingWave — all running together in Docker Compose with a live
    20-vehicle simulator generating continuous data.
 
 2. **The virtual topic pattern works at the SQL layer.** Eleven materialized views — including
@@ -248,7 +247,7 @@ Kafka-native connectors and consumers.
    from a single source of truth.
 
 3. **The architecture is non-invasive.** Nothing in the Solace Platform configuration changes
-   for existing producers or consumers. The bridge connector reads from a queue that already
+   for existing producers or consumers. The durable queue reads from a subscription that already
    exists (or is added without disruption).
 
 4. **The developer experience is dramatically simpler.** Adding a new analytical view is
@@ -266,13 +265,12 @@ Kafka-native connectors and consumers.
 
 - **Production sizing:** RisingWave in playground mode (single process) handles this POC.
   A production deployment uses a distributed cluster with separate meta, compute, and storage nodes.
-  Redpanda similarly scales horizontally.
 
 - **Schema registry:** This POC uses plain JSON without schema enforcement. Production deployments
-  benefit from a schema registry (Redpanda includes one) to catch payload drift early.
+  benefit from a schema registry to catch payload drift early.
 
 - **Sink connectors:** RisingWave can push results to downstream systems (databases, dashboards,
-  notification services) via Kafka Connect sink connectors — closing the loop from event to action.
+  notification services) via sink connectors — closing the loop from event to action.
 
 - **Solace Event Portal integration:** Complete. The Fleet Operations application domain
   in Event Portal is the catalog of record for all events and schemas. `generate_mvs.py`

@@ -61,22 +61,22 @@
   <text x="155" y="197" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">pub/sub · fan-out · routing</text>
   <text x="155" y="210" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">20 vehicles · fleet/ topics</text>
 
-  <!-- Arrow Solace → Redpanda -->
+  <!-- Arrow Solace → RDP -->
   <line x1="155" y1="216" x2="155" y2="252" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
-  <rect x="117" y="226" width="76" height="16" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="155" y="238" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">SMF bridge</text>
+  <rect x="109" y="226" width="92" height="16" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="155" y="238" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">rw-ingest queue</text>
 
-  <!-- Redpanda node -->
+  <!-- REST Delivery Point node -->
   <rect x="52" y="252" width="206" height="68" rx="8" fill="#03213B" stroke="#ABFF88" stroke-width="1.5"/>
   <rect x="52" y="252" width="206" height="5" rx="4" fill="#ABFF88"/>
-  <text x="155" y="283" font-family="Figtree, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">Redpanda</text>
-  <text x="155" y="300" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">durable log · fleet-events</text>
-  <text x="155" y="313" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">single topic · replayable</text>
+  <text x="155" y="280" font-family="Figtree, Segoe UI, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">REST Delivery Point</text>
+  <text x="155" y="295" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">built-in Solace feature</text>
+  <text x="155" y="310" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">rw-ingest queue → HTTP POST</text>
 
-  <!-- Arrow Redpanda → RisingWave -->
+  <!-- Arrow RDP → RisingWave -->
   <line x1="155" y1="320" x2="155" y2="356" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
   <rect x="101" y="330" width="108" height="16" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="155" y="342" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">Kafka protocol</text>
+  <text x="155" y="342" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">HTTP POST :4560</text>
 
   <!-- RisingWave node -->
   <rect x="52" y="356" width="206" height="68" rx="8" fill="#03213B" stroke="#C2F7FF" stroke-width="1.5"/>
@@ -246,5 +246,5 @@
 
   <!-- Bottom footer strip -->
   <line x1="20" y1="584" x2="880" y2="584" stroke="#093B5F" stroke-width="1"/>
-  <text x="450" y="597" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#C2F7FF" text-anchor="middle" opacity="0.7">Solace Platform  ·  Redpanda  ·  RisingWave  —  Fleet Streaming POC</text>
+  <text x="450" y="597" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#C2F7FF" text-anchor="middle" opacity="0.7">Solace Platform  ·  REST Delivery Point  ·  RisingWave  —  Fleet Streaming POC</text>
 </svg>

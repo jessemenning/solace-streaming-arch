@@ -4,7 +4,7 @@
 
 The core pattern: SQL `WHERE` clauses replace Solace wildcard subscriptions.
 
-All messages flow into one Redpanda topic (`fleet-events`) with the original Solace topic embedded as `solace_topic`. RisingWave MVs replicate the same filtering:
+All messages arrive at `fleet_all_raw` (a single-column JSONB webhook table) via the Solace REST Delivery Point. Each payload includes the original Solace topic as `solace_topic`. RisingWave MVs replicate the same filtering:
 
 | Solace subscription | RisingWave equivalent |
 |---|---|
@@ -21,7 +21,7 @@ The `*` → `%` substitution is the direct translation between SMF wildcards and
 Solace Event Portal  (design-time catalog — drives code generation)
   └── generate_mvs.py → config/risingwave/init.sql
         ↓
-fleet_all_raw  (SOURCE — reads fleet-events, all fields nullable)
+fleet_all_raw  (webhook TABLE — receives HTTP POSTs from Solace RDP, single JSONB column)
   ├── fleet_telemetry_raw  (static routing MV — LIKE 'fleet/telemetry/%')
   ├── fleet_events_raw     (static routing MV — LIKE 'fleet/events/%')
   └── fleet_commands_raw   (static routing MV — LIKE 'fleet/commands/%')
@@ -42,7 +42,7 @@ Analytics MVs (static — build on routing MVs):
 
 MVs extend beyond topic filtering — windowed aggregations and stream-stream JOINs have no Solace equivalent.
 
-EP-generated MVs and static routing MVs both read from `fleet_all_raw` directly. EP-generated MVs use fine-grained LIKE patterns derived from event delivery descriptors; routing MVs use broad patterns for analytics queries that span an entire message family.
+EP-generated MVs and static routing MVs both read from `fleet_all_raw` directly. Routing MVs extract typed columns from JSONB and apply broad LIKE patterns; EP-generated MVs use fine-grained LIKE patterns derived from event delivery descriptors. Analytics MVs above them see ordinary typed columns and are unaffected by the JSONB ingest format.
 
 ---
 

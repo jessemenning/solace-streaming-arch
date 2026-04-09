@@ -9,9 +9,9 @@ geographic region" — requires a new topic, a new bridge, or a new filter
 application running continuously.
 
 This POC demonstrates an alternative: use Solace for what it is best at
-(real-time routing, fan-out, guaranteed delivery), preserve the complete event
-stream in a durable log (Redpanda), and move the "subscription logic" into the
-database layer (RisingWave materialized views).
+(real-time routing, fan-out, guaranteed delivery), and move the "subscription logic" into the
+database layer (RisingWave materialized views). Solace's built-in REST Delivery Point
+connects the two with no custom connector code.
 
 ---
 
@@ -35,19 +35,14 @@ Fleet vehicles
      ▼
 Solace Platform Event Broker   port 55555 (SMF)
   VPN: streaming-poc
-  Queue: q/redpanda-bridge  ← subscription: fleet/>
+  Queue: rw-ingest  ← subscription: fleet/>  (durable, guaranteed delivery)
      │
-     │  Kafka Connect  (Solace Source Connector)
-     ▼
-Redpanda (Kafka-compatible log)
-  Topic: fleet-events  (single topic, all message types, infinite retention)
-  Every message payload includes:  solace_topic  (exact original topic)
-     │
-     │  Kafka protocol  (bootstrap: redpanda:9092)
+     │  REST Delivery Point (risingwave-rdp) — built-in Solace feature, no connector code
+     │  HTTP POST to risingwave:4560  (Content-Type: application/json)
      ▼
 RisingWave Streaming SQL Engine   port 4566 (Postgres wire protocol)
-  Source: fleet_all_raw  (reads fleet-events; all fields nullable)
-  Routing MVs (static — broad-pattern subscriptions):
+  Webhook TABLE: fleet_all_raw  (single JSONB column — receives every HTTP POST)
+  Routing MVs (extract typed columns from JSONB, filter by solace_topic):
     fleet_telemetry_raw           → WHERE solace_topic LIKE 'fleet/telemetry/%'
     fleet_events_raw              → WHERE solace_topic LIKE 'fleet/events/%'
     fleet_commands_raw            → WHERE solace_topic LIKE 'fleet/commands/%'
@@ -99,36 +94,25 @@ Adding a new event type in EP automatically produces a corresponding RisingWave 
 
 ## Design Decisions
 
-### 1. Coarse-grained Redpanda topics
+### 1. Solace topic preserved in payload
 
-Solace supports thousands of fine-grained topic variants.
-Redpanda topics map to partitions and replication units — it is not practical
-(or necessary) to create one Redpanda topic per Solace topic.
+Every message payload includes the original Solace topic address as `solace_topic`.
+The generator sets this field before publishing. RisingWave uses `WHERE solace_topic LIKE '...'`
+to reconstruct any logical sub-stream that was previously a Solace wildcard subscription.
 
-Decision: bridge all `fleet/>` traffic into three coarse-grained Redpanda topics
-(`fleet-telemetry`, `fleet-events`, `fleet-commands`).
-The original Solace topic is preserved in the JSON payload as `solace_topic`.
-RisingWave SQL filters on `solace_topic` or payload fields to reconstruct any
-logical sub-stream that was previously a Solace topic.
+This is more reliable than relying on HTTP headers (which require per-connector configuration)
+and survives schema changes or connector swaps unchanged.
 
-### 2. Solace topic preserved in payload, not only headers
+### 2. Single webhook TABLE with JSONB routing MVs
 
-The Solace Kafka connector can propagate the source destination as a Kafka header.
-However, header support in RisingWave's Kafka connector is evolving.
-Embedding `solace_topic` directly in the JSON payload guarantees the information
-survives regardless of connector or schema changes.
+RisingWave's webhook connector requires a single `data JSONB` column.
+Rather than fighting this constraint, the routing layer (three MVs) extracts typed columns
+from JSONB and filters by `solace_topic`. All analytics MVs above them see ordinary typed
+columns and are unaffected by the ingest format.
 
-### 3. Partition key = vehicle_id (via DESTINATION mapping)
+This isolates the JSONB extraction concern to one layer, keeping analytics MVs clean and readable.
 
-The connector config sets `sol.kafka_message_key=DESTINATION`, which uses the
-Solace destination (topic) string as the Kafka partition key.
-Since the topic always contains the vehicle ID, messages for the same vehicle
-hash to the same partition, maintaining per-vehicle ordering in Redpanda.
-
-Alternative: a custom message processor that extracts the vehicle ID from the
-payload. This adds complexity for marginal gain in a POC.
-
-### 4. RisingWave in playground mode
+### 3. RisingWave in playground mode
 
 For the POC, RisingWave runs in single-node `playground` mode.
 This removes the need for a separate storage backend (etcd, MinIO) and makes
@@ -138,12 +122,6 @@ For production, RisingWave would run in distributed mode with:
   - Compute nodes (query execution)
   - Compactor (storage management)
   - Object store (S3 or compatible)
-
-### 5. Infinite retention in Redpanda
-
-Redpanda is the system of record.
-Setting `retention.ms=-1` means no messages are deleted by time.
-In production, set a retention policy aligned with your replay and compliance needs.
 
 ---
 
@@ -166,12 +144,12 @@ End-to-end latency (Solace publish → RisingWave materialized view visible):
 
 | Segment | Expected latency |
 |---|---|
-| Solace publish → Redpanda via Kafka Connect | 50–500 ms (connector poll interval) |
-| Redpanda → RisingWave source ingestion | 10–100 ms |
+| Solace publish → queue `rw-ingest` | < 5 ms |
+| RDP HTTP POST → RisingWave webhook | 5–50 ms (network + HTTP round-trip) |
 | RisingWave incremental view update | < 100 ms for simple filters |
-| Total typical | 200 ms – 1 s |
+| Total typical | 50–200 ms |
 
-For pure real-time consumers that need sub-100 ms delivery, they should
+For pure real-time consumers that need sub-10 ms delivery, they should
 subscribe directly to Solace topics (not via RisingWave).
-RisingWave is for analytical/aggregated views where near-real-time (< 5 s)
+RisingWave is for analytical/aggregated views where near-real-time (< 1 s)
 is sufficient.
