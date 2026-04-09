@@ -21,9 +21,14 @@ Every Solace topic pattern maps to a RisingWave materialized view via a registry
 cd cli
 pip install -r requirements.txt
 chmod +x solace_plus.py
+
+# Generate the topic registry (no EP token required)
+cd .. && python3 generate_mvs.py --skip-ep
 ```
 
 No package install needed. Run directly as `./cli/solace_plus.py` from the project root, or add `cli/` to your `PATH`.
+
+The registry (`config/topic-mv-registry.yaml`) must exist before any command runs. `--skip-ep` generates it from the static mappings without needing a Solace Cloud token. To include Event Portal–generated MVs, set `SOLACE_CLOUD_TOKEN` in `.env` and run `python3 generate_mvs.py` without the flag.
 
 ---
 

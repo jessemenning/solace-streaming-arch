@@ -58,7 +58,8 @@ def load_registry() -> dict:
     if not REGISTRY_PATH.exists():
         click.echo(
             f"ERROR: Registry not found at {REGISTRY_PATH}\n"
-            "Run 'python3 generate_mvs.py' to generate it.",
+            "Run 'python3 generate_mvs.py --skip-ep' to generate it (no EP token needed).\n"
+            "Or run 'python3 generate_mvs.py' if SOLACE_CLOUD_TOKEN is set.",
             err=True,
         )
         sys.exit(1)

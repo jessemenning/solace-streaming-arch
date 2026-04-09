@@ -465,12 +465,24 @@ def main() -> None:
                         help="Event Portal application domain name (default: 'Fleet Operations')")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print generated SQL to stdout instead of writing the file")
+    parser.add_argument("--skip-ep", action="store_true",
+                        help="Write static registry only (no EP token required); skips init.sql")
     args = parser.parse_args()
 
     load_env(SCRIPT_DIR / ".env")
+
+    # ── Skip-EP mode: write static registry without hitting Event Portal ──────
+    if args.skip_ep:
+        reg_path = SCRIPT_DIR / "config" / "topic-mv-registry.yaml"
+        write_registry(reg_path, STATIC_REGISTRY_MAPPINGS)
+        print(f"Wrote {reg_path}  (static mappings only — no EP-generated entries)")
+        print("To include EP-generated MVs: set SOLACE_CLOUD_TOKEN and re-run without --skip-ep")
+        return
+
     token = os.environ.get("SOLACE_CLOUD_TOKEN", "")
     if not token:
-        sys.exit("ERROR: SOLACE_CLOUD_TOKEN not set — add it to .env or export it")
+        sys.exit("ERROR: SOLACE_CLOUD_TOKEN not set — add it to .env or export it\n"
+                 "       To generate the registry without EP: python3 generate_mvs.py --skip-ep")
 
     print(f"Querying Event Portal domain: {args.domain!r} ...")
 

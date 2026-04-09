@@ -204,7 +204,10 @@ python3 generate_mvs.py --dry-run
 ```bash
 # Install
 cd cli && pip install -r requirements.txt
-chmod +x solace_plus.py
+chmod +x solace_plus.py && cd ..
+
+# Generate the registry (no EP token required)
+python3 generate_mvs.py --skip-ep
 
 # Query RisingWave snapshot (stack must be running)
 ./cli/solace_plus.py query fleet/telemetry/*/metrics/speed --limit 5
