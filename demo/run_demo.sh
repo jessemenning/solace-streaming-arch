@@ -97,6 +97,43 @@ wait_for_psql() {
   log "RisingWave is ready."
 }
 
+# ── Helper: wait for Solace message spool ────────────────────────────────────
+# SEMP becomes responsive before the message spool finishes initializing.
+# Poll the default VPN's monitor endpoint until operationalStatus is "Up".
+wait_for_solace_spool() {
+  local max_wait="${1:-180}"
+  local elapsed=0
+  log "Waiting for Solace message spool to become active..."
+  while true; do
+    local status
+    status=$(curl -sf -u "admin:admin" \
+      "http://localhost:8180/SEMP/v2/monitor/msgVpns/default" 2>/dev/null | \
+      ${PYTHON} -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    data = d.get('data', {})
+    # Check several possible readiness indicators
+    op = data.get('operationalStatus', data.get('state', ''))
+    spool = data.get('msgSpoolOperational', None)
+    if spool is True or op.lower() == 'up':
+        print('Up')
+    else:
+        print(op or 'NotReady')
+except Exception:
+    print('Unknown')
+" 2>/dev/null || echo "Unknown")
+    if [[ "${status}" == "Up" ]]; then
+      log "Solace message spool is active."
+      break
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+    [[ ${elapsed} -ge ${max_wait} ]] && fail "Solace message spool did not become active within ${max_wait}s"
+    log "  still waiting for message spool... (${elapsed}s, status=${status})"
+  done
+}
+
 # ── Helper: wait for TCP port ────────────────────────────────────────────────
 wait_for_port() {
   local label="$1"
@@ -113,6 +150,10 @@ wait_for_port() {
   done
   log "${label} is ready."
 }
+
+# ─── STEP 0: Clear previous container logs ───────────────────────────────────
+log "=== STEP 0: Removing existing containers (clears logs) ==="
+docker-compose down --remove-orphans 2>/dev/null || true
 
 # ─── STEP 1: Build and start infrastructure ───────────────────────────────────
 log "=== STEP 1: Starting infrastructure ==="
@@ -132,6 +173,8 @@ log "=== STEP 2: Health checks ==="
 wait_for_url "Solace Platform SEMP" \
   "http://localhost:8180/SEMP/v2/config/about/api" \
   "admin:admin" 180
+
+wait_for_solace_spool 180
 
 wait_for_psql "localhost" 4566 120
 

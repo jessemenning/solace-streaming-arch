@@ -26,6 +26,25 @@ semp_post() {
   fi
 }
 
+# Like semp_post but logs a warning and continues on INVALID_PATH (feature not supported
+# in this Solace version) instead of aborting.
+semp_post_optional() {
+  local label="$1"
+  local path="$2"
+  local body="$3"
+  local response
+  response=$(curl -s -u "${CREDS}" -X POST "${SEMP_BASE}${path}" \
+    -H "Content-Type: application/json" -d "${body}" 2>&1)
+  if echo "${response}" | grep -qi 'INVALID_PATH'; then
+    log "WARNING: ${label} skipped — endpoint not available in this Solace version (upgrade to 9.13+ for full support)"
+  elif echo "${response}" | grep -q '"responseCode":[^2]' && \
+       ! echo "${response}" | grep -qi 'already.exists\|ALREADY_EXISTS'; then
+    echo "[solace-setup] ERROR on POST ${path}:" >&2
+    echo "${response}" >&2
+    exit 1
+  fi
+}
+
 # ── 1. Message VPN ──────────────────────────────────────────────────────────
 log "Creating VPN: ${VPN}"
 semp_post "/msgVpns" "$(cat <<JSON
@@ -84,6 +103,7 @@ JSON
 # HTTP POST to RisingWave webhook endpoint (risingwave:4560/webhook/dev/public/fleet_all_raw)
 
 # ── 5. Durable ingest queue ───────────────────────────────────────────────────
+# permission "consume" is required for the RDP's internal client to bind to this queue.
 log "Creating queue: rw-ingest"
 semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 {
@@ -91,7 +111,7 @@ semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
   "ingressEnabled": true,
   "egressEnabled": true,
   "accessType": "exclusive",
-  "permission": "no-access",
+  "permission": "consume",
   "maxMsgSpoolUsage": 100
 }
 JSON
@@ -108,11 +128,13 @@ JSON
 
 # ── 7. REST Delivery Point ────────────────────────────────────────────────────
 log "Creating REST Delivery Point: risingwave-rdp"
+# Must use streaming-profile (not default) — default has allowGuaranteedMsgReceiveEnabled: false
+# which prevents the RDP from binding to the queue.
 semp_post "/msgVpns/${VPN}/restDeliveryPoints" "$(cat <<JSON
 {
   "restDeliveryPointName": "risingwave-rdp",
   "enabled": true,
-  "clientProfileName": "default"
+  "clientProfileName": "streaming-profile"
 }
 JSON
 )"
@@ -131,14 +153,12 @@ JSON
 )"
 
 # ── 9. Content-Type header on REST Consumer ───────────────────────────────────
+# requestHeaders endpoint requires SEMP API v2.23 (Solace Platform 9.13+).
+# Falls back gracefully on older images — webhook still works without explicit header.
 log "Setting Content-Type: application/json on fleet-webhook"
-semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers/fleet-webhook/requestHeaders" "$(cat <<JSON
-{
-  "headerName": "Content-Type",
-  "headerValue": "application/json"
-}
-JSON
-)"
+semp_post_optional "Content-Type header" \
+  "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers/fleet-webhook/requestHeaders" \
+  '{"headerName":"Content-Type","headerValue":"application/json"}'
 
 # ── 10. Queue Binding ─────────────────────────────────────────────────────────
 log "Creating queue binding: rw-ingest → /webhook/dev/public/fleet_all_raw"

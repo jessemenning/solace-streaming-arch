@@ -18,6 +18,7 @@
 -- =============================================================================
 
 SET timezone = 'UTC';
+SET client_min_messages = WARNING;
 
 -- ── Tear down previous objects (safe to re-run) ──────────────────────────────
 DROP MATERIALIZED VIEW IF EXISTS vehicle_event_counts_1h      CASCADE;

@@ -220,8 +220,9 @@ python3 generate_mvs.py --dry-run
 ## RDP Notes
 
 - Queue `rw-ingest` subscribes to `fleet/>` — receives ALL fleet messages
-- REST Delivery Point `risingwave-rdp` uses the `default` client profile
-- REST Consumer `fleet-webhook` POSTs to `risingwave:4560`; `Content-Type: application/json` header set
+- Queue `permission` must be `"consume"` (not `"no-access"`) so the RDP's internal client can bind
+- REST Delivery Point `risingwave-rdp` uses `streaming-profile` (not `default`) — the `default` profile has `allowGuaranteedMsgReceiveEnabled: false`, which prevents the RDP from binding to the queue
+- REST Consumer `fleet-webhook` POSTs to `risingwave:4560`; `Content-Type: application/json` set via `requestHeaders` (requires SEMP API v2.23 / Solace Platform 9.13+; falls back gracefully on older images)
 - Queue binding maps `rw-ingest` → `/webhook/dev/public/fleet_all_raw`
 - Webhook endpoint: `http://risingwave:4560/webhook/dev/public/fleet_all_raw`
 - No auth on RisingWave webhook endpoint (optional — not configured)
@@ -232,7 +233,9 @@ python3 generate_mvs.py --dry-run
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `fleet_telemetry_raw` returns 0 rows | RDP not delivering to RisingWave | Check `docker logs risingwave`; verify RDP and queue binding exist in SEMP |
+| `fleet_telemetry_raw` returns 0 rows | RDP not delivering to RisingWave | Check `docker logs risingwave`; verify RDP and queue binding are up in SEMP |
+| RDP queue binding `up: false` / "Permission Not Allowed" | Queue `permission` is `no-access` or RDP uses `default` client profile | Ensure `permission: consume` on queue and `clientProfileName: streaming-profile` on RDP in `setup.sh` |
+| RDP queue binding `up: false` / "Service Unavailable" | RDP tried to connect before RisingWave was ready; stale failure | `run_demo.sh` now waits for spool before running setup; bounce RDP via SEMP PATCH `enabled: false/true` to force retry |
 | RDP not delivering | Queue `rw-ingest` or RDP not configured | Re-run `config/solace/setup.sh`; check SEMP at http://localhost:8180 |
 | Generator not publishing | VPN not yet configured | `generator/entrypoint.sh` polls SEMP — run `docker logs -f fleet-generator` to see wait status |
 | SEMP calls fail silently | `curl -sf` swallows errors | Use `curl -s` to see error body |
