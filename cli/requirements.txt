@@ -1,0 +1,6 @@
+psycopg2-binary
+solace-pubsubplus
+click
+pyyaml
+tabulate
+python-dotenv
