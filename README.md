@@ -103,6 +103,7 @@ FROM vehicles_in_region_boston ORDER BY recorded_at DESC LIMIT 10;
 | Service | URL | Credentials |
 |---|---|---|
 | **Fleet Operations AI (agentic demo)** | **http://localhost:8090** | — |
+| **Solace+ Try Me (pub/sub + history replay)** | **http://localhost:8091** | — |
 | Solace Platform admin | http://localhost:8180 | admin / admin |
 | RisingWave Dashboard | http://localhost:5691 | — |
 | Solace SMF (SDK) | tcp://localhost:55555 | streaming-user / default |

@@ -60,7 +60,7 @@ is `http://risingwave:4560/webhook/dev/public/fleet_all_raw`. No auth is require
 
 | Path | Purpose |
 |---|---|
-| `docker-compose.yml` | Five services: solace, risingwave, fleet-generator, fleet-agent, ep-setup |
+| `docker-compose.yml` | Six services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup |
 | `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, queue `rw-ingest`, RDP `risingwave-rdp`, REST Consumer → `risingwave:4560` |
 | `create_ep_objects.sh` | Creates Fleet Operations domain, schemas, events, and applications in Solace Event Portal via REST API; reads `SOLACE_CLOUD_TOKEN` from `.env` |
 | `generate_mvs.py` | Queries EP catalog → regenerates `config/risingwave/init.sql` and `config/topic-mv-registry.yaml`; run after adding/changing EP events |
@@ -80,6 +80,10 @@ is `http://risingwave:4560/webhook/dev/public/fleet_all_raw`. No auth is require
 | `demo/index.html` | Solace-branded single-page UI; chat + Agent Activity panels; live fleet stats bar |
 | `demo/requirements.txt` | `fastapi`, `uvicorn`, `anthropic`, `psycopg2-binary`, `python-dotenv` |
 | `demo/Dockerfile` | Python 3.11-slim; exposes port 8090 |
+| `tryme/server.py` | FastAPI backend for Solace+ Try Me: SSE `/subscribe` streams RisingWave history then live SMF; `/publish` publishes to Solace; `/config` returns topic registry |
+| `tryme/index.html` | Solace-branded Try Me UI; subscribes with optional history window; deduplicates history vs live; supports publish |
+| `tryme/requirements.txt` | `fastapi`, `uvicorn`, `psycopg2-binary`, `solace-pubsubplus`, `pyyaml`, `python-dotenv` |
+| `tryme/Dockerfile` | Python 3.11-slim; exposes port 8091 |
 | `.env.template` | Committed placeholder — copy to `.env` at project root and fill in credentials |
 
 ---
@@ -133,6 +137,7 @@ fleet/commands/{vehicle_id}/{command_type}
 | RisingWave webhook | 4560 | HTTP POST from Solace RDP → `fleet_all_raw` table |
 | RisingWave Dashboard | 5691 | — |
 | Fleet Agent UI | 8090 | Agentic demo — FastAPI + Claude + RisingWave tools |
+| Solace+ Try Me | 8091 | Interactive pub/sub UI with history replay from RisingWave |
 | fleet-generator | — | No host port; internal container publishes to Solace on streaming-net |
 
 ---
@@ -272,6 +277,7 @@ solace+ env vars (override defaults via `.env` or export):
 - Queue binding maps `rw-ingest` → `/webhook/dev/public/fleet_all_raw`
 - Webhook endpoint: `http://risingwave:4560/webhook/dev/public/fleet_all_raw`
 - No auth on RisingWave webhook endpoint (optional — not configured)
+- Queue hardening: `maxRedeliveryCount: 3` moves stuck messages to `#DEAD_MSG_QUEUE` after 3 failed deliveries; `maxTtl: 300` (5 min) + `respectTtlEnabled: true` auto-expires old messages — prevents backlog accumulation if RisingWave is temporarily unavailable
 
 ---
 
@@ -288,3 +294,6 @@ solace+ env vars (override defaults via `.env` or export):
 | `psql: command not found` | Client not installed | `sudo apt-get install -y postgresql-client` |
 | Fleet Agent UI shows "DEMO" tag | RisingWave unreachable or no data | Confirm RisingWave is healthy; UI falls back to mock data automatically |
 | Fleet Agent UI `401 Unauthorized` | Missing or wrong `ANTHROPIC_API_KEY` | Check `.env` at project root; ensure it exists (copy from `.env.template`) |
+| RDP stalls; queue backlog builds to 100k+ messages | RisingWave in recovery loop returning HTTP errors; 3 stuck redelivery messages block pipeline | Bounce RDP: `curl -u admin:admin -X PATCH .../risingwave-rdp -d '{"enabled":false}'` then `true`; if still stuck: `PUT .../rw-ingest/deleteMsgs -d '{}'` to drain queue |
+| RisingWave loses all tables after restart | `playground` mode has no persistent state | Re-run `psql ... -f config/risingwave/init.sql` after any RisingWave restart |
+| Try Me live events show `_raw` with framing bytes | Solace SMF SDK `get_payload_as_bytes()` includes 5-byte protocol header | Fixed: `tryme/server.py` uses `get_payload_as_string()` first |

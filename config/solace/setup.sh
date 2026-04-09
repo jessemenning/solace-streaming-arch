@@ -112,7 +112,11 @@ semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
   "egressEnabled": true,
   "accessType": "exclusive",
   "permission": "consume",
-  "maxMsgSpoolUsage": 100
+  "maxMsgSpoolUsage": 100,
+  "maxRedeliveryCount": 3,
+  "deadMsgQueue": "#DEAD_MSG_QUEUE",
+  "maxTtl": 300,
+  "respectTtlEnabled": true
 }
 JSON
 )"

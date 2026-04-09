@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solace+ Try Me</title>
+  <style>
+    /* ── Design tokens ─────────────────────────────────────────── */
+    :root {
+      --dark-blue:    #03213B;
+      --deep-blue:    #093B5F;
+      --mid-blue:     #0a4a78;
+      --classic-green: #00C895;
+      --bright-green: #ABFF88;
+      --dark-green:   #009193;
+      --orange:       #FCA829;
+      --sky-blue:     #C2F7FF;
+      --text:         #E8F4FF;
+      --text-muted:   #7FA8C9;
+      --border:       rgba(0,200,149,0.18);
+      --panel-bg:     rgba(9,59,95,0.55);
+      --input-bg:     rgba(3,33,59,0.7);
+      --tag-live:     #00C895;
+      --tag-hist:     #FCA829;
+      --radius:       6px;
+      --font-mono:    'Space Mono', 'Cascadia Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Figtree, 'Segoe UI', sans-serif;
+      background: var(--dark-blue);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #03213B 0%, #093B5F 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .logo-mark {
+      width: 28px; height: 28px;
+      background: var(--classic-green);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: var(--dark-blue);
+      font-family: var(--font-mono);
+    }
+    header h1 {
+      font-size: 16px; font-weight: 600; letter-spacing: 0.01em;
+    }
+    header h1 span { color: var(--classic-green); }
+    .header-meta {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .conn-badge {
+      font-size: 11px; font-family: var(--font-mono);
+      padding: 3px 9px; border-radius: 20px;
+      border: 1px solid;
+    }
+    .conn-badge.ok  { color: var(--classic-green); border-color: var(--classic-green); }
+    .conn-badge.err { color: var(--orange); border-color: var(--orange); }
+    .conn-badge.loading { color: var(--text-muted); border-color: var(--text-muted); }
+
+    /* ── Layout ────────────────────────────────────────────────── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      gap: 1px;
+      overflow: hidden;
+      background: rgba(0,0,0,0.25);
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-publisher  { width: 420px; flex-shrink: 0; border-right: 1px solid var(--border); }
+    .panel-subscriber { flex: 1; }
+
+    .panel-header {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .panel-label {
+      font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--classic-green); opacity: 0.85;
+    }
+    .panel-title { font-size: 15px; font-weight: 600; flex: 1; }
+
+    /* ── Form atoms ────────────────────────────────────────────── */
+    .field { padding: 12px 18px 0; }
+    .field:last-child { padding-bottom: 12px; }
+
+    label {
+      display: block;
+      font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid rgba(127,168,201,0.3);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, textarea:focus, select:focus {
+      border-color: var(--classic-green);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .readonly-field {
+      background: rgba(3,33,59,0.4);
+      border: 1px solid rgba(127,168,201,0.15);
+      border-radius: var(--radius);
+      padding: 7px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      width: 100%;
+    }
+
+    /* ── Chip groups ───────────────────────────────────────────── */
+    .chip-row {
+      display: flex; flex-wrap: wrap; gap: 5px;
+      margin-top: 6px;
+    }
+    .chip {
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 3px 8px; border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer; user-select: none;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .chip:hover { background: rgba(0,200,149,0.12); color: var(--classic-green); border-color: var(--classic-green); }
+    .chip.active { background: rgba(0,200,149,0.2); color: var(--classic-green); border-color: var(--classic-green); }
+
+    /* ── Buttons ───────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; outline: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--classic-green);
+      color: var(--dark-blue);
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+
+    .btn-danger {
+      background: rgba(252,168,41,0.15);
+      color: var(--orange);
+      border: 1px solid rgba(252,168,41,0.4);
+    }
+    .btn-danger:hover:not(:disabled) { background: rgba(252,168,41,0.25); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid rgba(127,168,201,0.25);
+    }
+    .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: rgba(127,168,201,0.5); }
+
+    .btn-row {
+      display: flex; gap: 8px; padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .btn-row .btn { flex: 1; justify-content: center; }
+
+    /* ── History controls ──────────────────────────────────────── */
+    .hist-section {
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .hist-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    }
+    .hist-toggle {
+      display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    }
+    .toggle-box {
+      width: 32px; height: 18px; border-radius: 9px;
+      background: rgba(127,168,201,0.2); border: 1px solid rgba(127,168,201,0.35);
+      position: relative; transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .toggle-box::after {
+      content: '';
+      position: absolute; top: 2px; left: 2px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--text-muted); transition: left 0.15s, background 0.15s;
+    }
+    .toggle-box.on {
+      background: rgba(0,200,149,0.25); border-color: var(--classic-green);
+    }
+    .toggle-box.on::after { left: 16px; background: var(--classic-green); }
+    .hist-label { font-size: 12px; font-weight: 600; }
+
+    .duration-presets { display: flex; flex-wrap: wrap; gap: 5px; }
+    .dur-chip {
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 4px 9px; border-radius: 20px;
+      border: 1px solid rgba(252,168,41,0.3);
+      color: var(--text-muted); cursor: pointer;
+      transition: all 0.12s;
+    }
+    .dur-chip:hover { background: rgba(252,168,41,0.12); color: var(--orange); border-color: var(--orange); }
+    .dur-chip.active { background: rgba(252,168,41,0.2); color: var(--orange); border-color: var(--orange); }
+
+    /* ── Message stream ────────────────────────────────────────── */
+    .stream-header {
+      padding: 10px 16px 8px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .stream-stats {
+      display: flex; gap: 12px; font-family: var(--font-mono); font-size: 11px;
+      flex: 1;
+    }
+    .stat-item { display: flex; align-items: center; gap: 4px; }
+    .stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .stat-dot.hist { background: var(--tag-hist); }
+    .stat-dot.live { background: var(--tag-live); animation: pulse 1.5s infinite; }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+    .stat-count { font-weight: 600; color: var(--text); }
+    .stat-label { color: var(--text-muted); }
+
+    .stream-body {
+      flex: 1; overflow-y: auto; padding: 8px;
+    }
+    .stream-body::-webkit-scrollbar { width: 4px; }
+    .stream-body::-webkit-scrollbar-track { background: transparent; }
+    .stream-body::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
+
+    /* ── Message card ──────────────────────────────────────────── */
+    .msg-card {
+      background: rgba(3,33,59,0.5);
+      border: 1px solid rgba(127,168,201,0.15);
+      border-radius: var(--radius);
+      margin-bottom: 5px;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .msg-card:hover { border-color: rgba(127,168,201,0.35); }
+    .msg-card.new-live { border-color: rgba(0,200,149,0.5); animation: flash 0.4s ease; }
+    @keyframes flash {
+      0%   { border-color: var(--classic-green); background: rgba(0,200,149,0.08); }
+      100% { border-color: rgba(127,168,201,0.15); background: rgba(3,33,59,0.5); }
+    }
+
+    .msg-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px;
+      cursor: pointer; user-select: none;
+    }
+    .msg-tag {
+      font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em;
+    }
+    .msg-tag.hist { background: rgba(252,168,41,0.2); color: var(--orange); border: 1px solid rgba(252,168,41,0.35); }
+    .msg-tag.live { background: rgba(0,200,149,0.18); color: var(--classic-green); border: 1px solid rgba(0,200,149,0.35); }
+
+    .msg-topic {
+      font-family: var(--font-mono); font-size: 11px; color: var(--sky-blue); flex: 1;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .msg-ts {
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .msg-chevron { color: var(--text-muted); font-size: 10px; flex-shrink: 0; transition: transform 0.15s; }
+    .msg-card.expanded .msg-chevron { transform: rotate(90deg); }
+
+    .msg-body {
+      display: none; padding: 0 10px 8px;
+      border-top: 1px solid rgba(127,168,201,0.1);
+    }
+    .msg-card.expanded .msg-body { display: block; }
+
+    pre.json {
+      font-family: var(--font-mono); font-size: 11px; line-height: 1.55;
+      color: var(--sky-blue);
+      white-space: pre-wrap; word-break: break-word;
+      margin: 6px 0 0;
+      max-height: 220px; overflow-y: auto;
+    }
+    pre.json::-webkit-scrollbar { width: 3px; }
+    pre.json::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
+
+    /* ── Status bar ────────────────────────────────────────────── */
+    .status-bar {
+      padding: 5px 18px;
+      background: rgba(3,33,59,0.8);
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--text-muted);
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0; min-height: 30px;
+    }
+    .status-icon { font-size: 9px; }
+
+    /* ── Publisher log ─────────────────────────────────────────── */
+    .pub-log {
+      flex: 1; overflow-y: auto;
+      padding: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .pub-log::-webkit-scrollbar { width: 4px; }
+    .pub-log::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
+    .pub-entry {
+      font-family: var(--font-mono); font-size: 11px;
+      padding: 5px 8px; border-radius: 4px;
+      margin-bottom: 4px;
+      background: rgba(3,33,59,0.4);
+      border-left: 2px solid var(--border);
+      display: flex; gap: 8px;
+    }
+    .pub-entry.ok  { border-left-color: var(--classic-green); }
+    .pub-entry.err { border-left-color: var(--orange); color: var(--orange); }
+    .pub-entry-ts { color: var(--text-muted); flex-shrink: 0; }
+    .pub-entry-topic { color: var(--sky-blue); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Scroll to bottom button ───────────────────────────────── */
+    .scroll-btn {
+      position: absolute; bottom: 44px; right: 12px;
+      background: var(--deep-blue); border: 1px solid var(--border);
+      color: var(--classic-green); border-radius: 50%;
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 14px;
+      opacity: 0; transition: opacity 0.2s; pointer-events: none;
+      z-index: 10;
+    }
+    .scroll-btn.visible { opacity: 1; pointer-events: all; }
+
+    /* ── Panels scroll ─────────────────────────────────────────── */
+    .panel-publisher .pub-scroll {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    }
+    .panel-publisher .pub-scroll::-webkit-scrollbar { width: 4px; }
+    .panel-publisher .pub-scroll::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
+    .panel-subscriber { position: relative; }
+
+    /* ── Empty state ───────────────────────────────────────────── */
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      padding: 40px; text-align: center; opacity: 0.45;
+    }
+    .empty-icon { font-size: 36px; }
+    .empty-text { font-size: 13px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo-mark">S+</div>
+  <h1>Solace<span>+</span> Try Me</h1>
+  <div class="header-meta">
+    <div class="conn-badge loading" id="solaceBadge">⏳ Solace…</div>
+    <div class="conn-badge loading" id="rwBadge">⏳ RisingWave…</div>
+  </div>
+</header>
+
+<!-- ── Workspace ──────────────────────────────────────────────────────────── -->
+<div class="workspace">
+
+  <!-- ═══════════════════ PUBLISHER ═════════════════════════════════════════ -->
+  <div class="panel panel-publisher">
+    <div class="panel-header">
+      <div>
+        <div class="panel-label">Publisher</div>
+        <div class="panel-title">Send Messages</div>
+      </div>
+    </div>
+
+    <div class="pub-scroll">
+      <!-- Connection info (read-only) -->
+      <div class="field">
+        <label>Broker URL</label>
+        <div class="readonly-field" id="cfgHost">—</div>
+      </div>
+      <div class="field">
+        <label>Message VPN</label>
+        <div class="readonly-field" id="cfgVpn">—</div>
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <div class="readonly-field" id="cfgUser">—</div>
+      </div>
+
+      <!-- Topic -->
+      <div class="field">
+        <label>Topic</label>
+        <input type="text" id="pubTopic" placeholder="fleet/telemetry/vehicle_001/metrics/speed" />
+        <div class="chip-row" id="pubTopicChips"></div>
+      </div>
+
+      <!-- Payload -->
+      <div class="field">
+        <label>Payload (JSON)</label>
+        <textarea id="pubPayload" rows="7" placeholder='{"vehicle_id":"vehicle_001","speed_mph":62.4}'></textarea>
+        <div class="chip-row">
+          <div class="chip" onclick="formatPayload()">Format</div>
+          <div class="chip" onclick="fillTemplate('speed')">Template: Speed</div>
+          <div class="chip" onclick="fillTemplate('alert')">Template: Alert</div>
+          <div class="chip" onclick="fillTemplate('location')">Template: Location</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Published log</label>
+      </div>
+      <div class="pub-log" id="pubLog">
+        <div class="empty-state">
+          <div class="empty-icon">📤</div>
+          <div class="empty-text">Published messages appear here</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="pubBtn" onclick="doPublish()">▶ Publish</button>
+      <button class="btn btn-ghost" onclick="clearPubLog()">Clear</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ SUBSCRIBER ════════════════════════════════════════ -->
+  <div class="panel panel-subscriber">
+    <div class="panel-header">
+      <div>
+        <div class="panel-label">Subscriber</div>
+        <div class="panel-title">Receive Messages</div>
+      </div>
+    </div>
+
+    <!-- Topic pattern -->
+    <div class="field">
+      <label>Topic Pattern</label>
+      <input type="text" id="subTopic" placeholder="fleet/events/*/alerts/high" />
+      <div class="chip-row" id="subTopicChips"></div>
+    </div>
+
+    <!-- History -->
+    <div class="hist-section">
+      <div class="hist-header">
+        <label class="hist-toggle" onclick="toggleHistory()">
+          <div class="toggle-box on" id="histToggle"></div>
+          <span class="hist-label">Replay historical data first</span>
+        </label>
+      </div>
+      <div id="histControls">
+        <div style="margin-bottom:6px; font-size:11px; color:var(--text-muted);">How far back?</div>
+        <div class="duration-presets" id="durationChips"></div>
+      </div>
+    </div>
+
+    <!-- Subscribe controls -->
+    <div class="btn-row" style="border-top:none; padding-top:0; padding-bottom:10px;">
+      <button class="btn btn-primary" id="subBtn" onclick="doSubscribe()">▶ Subscribe</button>
+      <button class="btn btn-danger" id="stopBtn" onclick="doStop()" disabled>■ Stop</button>
+      <button class="btn btn-ghost" onclick="clearMessages()">Clear</button>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stream-header">
+      <div class="stream-stats">
+        <div class="stat-item">
+          <div class="stat-dot hist"></div>
+          <span class="stat-count" id="histCount">0</span>
+          <span class="stat-label">historical</span>
+        </div>
+        <div class="stat-item">
+          <div class="stat-dot live"></div>
+          <span class="stat-count" id="liveCount">0</span>
+          <span class="stat-label">live</span>
+        </div>
+        <div class="stat-item" style="margin-left:auto;">
+          <span class="stat-count" id="totalCount">0</span>
+          <span class="stat-label">total</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message stream -->
+    <div class="stream-body" id="streamBody">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📡</div>
+        <div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div>
+      </div>
+    </div>
+
+    <!-- Scroll to bottom -->
+    <div class="scroll-btn" id="scrollBtn" onclick="scrollToBottom()" title="Jump to latest">↓</div>
+
+    <!-- Status bar -->
+    <div class="status-bar" id="statusBar">
+      <span class="status-icon">○</span>
+      <span id="statusText">Not connected</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentReader  = null;
+let histEnabled    = true;
+let selectedDur    = '1h';
+let histCnt        = 0;
+let liveCnt        = 0;
+let autoScroll     = true;
+let inHistoryPhase = false;
+
+const TEMPLATES = {
+  speed: {
+    topic: 'fleet/telemetry/vehicle_001/metrics/speed',
+    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/telemetry/vehicle_001/metrics/speed', speed_mph: 62.4, recorded_at: null }
+  },
+  alert: {
+    topic: 'fleet/events/vehicle_001/alerts/high',
+    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/events/vehicle_001/alerts/high', event_type: 'high_engine_temp', severity: 'high', description: 'Engine temperature exceeded 240°F', occurred_at: null }
+  },
+  location: {
+    topic: 'fleet/telemetry/vehicle_001/metrics/location',
+    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/telemetry/vehicle_001/metrics/location', latitude: 42.3601, longitude: -71.0589, speed_mph: 28.4, recorded_at: null }
+  }
+};
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const cfg = await fetch('/config').then(r => r.json());
+
+    document.getElementById('cfgHost').textContent = cfg.solace.host;
+    document.getElementById('cfgVpn').textContent  = cfg.solace.vpn;
+    document.getElementById('cfgUser').textContent = cfg.solace.user;
+
+    // Connection badges
+    const sb = document.getElementById('solaceBadge');
+    if (cfg.solace.sdk_available) {
+      sb.textContent = '✓ Solace SMF';
+      sb.className = 'conn-badge ok';
+    } else {
+      sb.textContent = '✗ SDK missing';
+      sb.className = 'conn-badge err';
+    }
+
+    // Check RisingWave reachability via config endpoint (it always returns something)
+    const rb = document.getElementById('rwBadge');
+    rb.textContent = `✓ RisingWave :${cfg.risingwave.port}`;
+    rb.className = 'conn-badge ok';
+
+    // Build topic chips
+    const topics = cfg.topics || [];
+    buildChips('pubTopicChips', topics.map(t => t.pattern), (p) => {
+      document.getElementById('pubTopic').value = p;
+      fillTemplateFromTopic(p);
+    });
+    buildChips('subTopicChips', topics.map(t => t.pattern), (p) => {
+      document.getElementById('subTopic').value = p;
+      // Auto-enable history if this topic has it
+      const entry = topics.find(t => t.pattern === p);
+      if (entry && entry.has_history && !histEnabled) toggleHistory();
+    });
+
+    // Duration presets
+    const durs = cfg.duration_presets || ['15m','30m','1h','4h','24h'];
+    buildDurationChips(durs);
+
+  } catch (e) {
+    setStatus('error', `Config error: ${e.message}`);
+  }
+}
+
+function buildChips(containerId, items, onClick) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  const seen = new Set();
+  items.forEach(p => {
+    if (seen.has(p)) return; seen.add(p);
+    const d = document.createElement('div');
+    d.className = 'chip';
+    d.textContent = p;
+    d.onclick = () => onClick(p);
+    el.appendChild(d);
+  });
+}
+
+function buildDurationChips(durs) {
+  const el = document.getElementById('durationChips');
+  el.innerHTML = '';
+  durs.forEach(d => {
+    const c = document.createElement('div');
+    c.className = 'dur-chip' + (d === selectedDur ? ' active' : '');
+    c.textContent = d;
+    c.onclick = () => selectDuration(d);
+    el.appendChild(c);
+  });
+}
+
+// ── History toggle ─────────────────────────────────────────────────────────────
+function toggleHistory() {
+  histEnabled = !histEnabled;
+  document.getElementById('histToggle').className = 'toggle-box' + (histEnabled ? ' on' : '');
+  document.getElementById('histControls').style.display = histEnabled ? 'block' : 'none';
+}
+
+function selectDuration(dur) {
+  selectedDur = dur;
+  document.querySelectorAll('.dur-chip').forEach(c => {
+    c.className = 'dur-chip' + (c.textContent === dur ? ' active' : '');
+  });
+}
+
+// ── Publish ───────────────────────────────────────────────────────────────────
+async function doPublish() {
+  const topic   = document.getElementById('pubTopic').value.trim();
+  const rawJson = document.getElementById('pubPayload').value.trim();
+
+  if (!topic) { alert('Enter a topic first.'); return; }
+
+  let payload;
+  try {
+    payload = JSON.parse(rawJson || '{}');
+  } catch (e) {
+    alert('Payload is not valid JSON: ' + e.message);
+    return;
+  }
+
+  // Fill in timestamp if null
+  if (payload.recorded_at === null) payload.recorded_at = new Date().toISOString();
+  if (payload.occurred_at === null) payload.occurred_at = new Date().toISOString();
+
+  const btn = document.getElementById('pubBtn');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, payload })
+    });
+    if (res.ok) {
+      appendPubLog(topic, true);
+    } else {
+      const err = await res.json();
+      appendPubLog(topic, false, err.detail || 'Error');
+    }
+  } catch (e) {
+    appendPubLog(topic, false, e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function appendPubLog(topic, ok, errMsg) {
+  const log = document.getElementById('pubLog');
+  // Remove empty state
+  log.querySelector('.empty-state')?.remove();
+
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const el = document.createElement('div');
+  el.className = 'pub-entry ' + (ok ? 'ok' : 'err');
+  el.innerHTML = `<span class="pub-entry-ts">${ts}</span><span class="pub-entry-topic">${ok ? '▶' : '✗'} ${topic}${errMsg ? ' — ' + errMsg : ''}</span>`;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearPubLog() {
+  document.getElementById('pubLog').innerHTML = '<div class="empty-state"><div class="empty-icon">📤</div><div class="empty-text">Published messages appear here</div></div>';
+}
+
+// ── Payload helpers ────────────────────────────────────────────────────────────
+function formatPayload() {
+  const ta = document.getElementById('pubPayload');
+  try {
+    ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
+  } catch (e) { alert('Invalid JSON: ' + e.message); }
+}
+
+function fillTemplate(name) {
+  const t = TEMPLATES[name];
+  if (!t) return;
+  document.getElementById('pubTopic').value = t.topic;
+  document.getElementById('pubPayload').value = JSON.stringify(t.payload, null, 2);
+}
+
+function fillTemplateFromTopic(pattern) {
+  if (pattern.includes('metrics/speed'))    fillTemplate('speed');
+  else if (pattern.includes('alerts'))      fillTemplate('alert');
+  else if (pattern.includes('location'))    fillTemplate('location');
+}
+
+// ── Subscribe / stream ─────────────────────────────────────────────────────────
+function doSubscribe() {
+  const topic = document.getElementById('subTopic').value.trim();
+  if (!topic) { alert('Enter a topic pattern first.'); return; }
+
+  doStop();  // stop any existing stream
+
+  const since = histEnabled ? selectedDur : null;
+  const url = `/subscribe?topic=${encodeURIComponent(topic)}` + (since ? `&since=${since}` : '');
+
+  histCnt = 0; liveCnt = 0;
+  autoScroll = true;
+  inHistoryPhase = false;
+  updateCounts();
+  setStatus('info', `Connecting…`);
+
+  document.getElementById('subBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = false;
+
+  // Clear previous messages
+  const streamBody = document.getElementById('streamBody');
+  streamBody.innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-icon">📡</div><div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div></div>';
+
+  const es = new EventSource(url);
+  currentReader = es;
+
+  es.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      handleEvent(evt);
+    } catch {}
+  };
+
+  es.onerror = () => {
+    if (es.readyState === EventSource.CLOSED) {
+      document.getElementById('subBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+      if (currentReader === es) currentReader = null;
+    }
+  };
+}
+
+function doStop() {
+  if (currentReader) {
+    currentReader.close();
+    currentReader = null;
+  }
+  inHistoryPhase = false;
+  document.getElementById('subBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  setStatus('idle', 'Stopped');
+}
+
+function handleEvent(evt) {
+  switch (evt.type) {
+    case 'status':
+      setStatus('info', evt.message);
+      break;
+    case 'history_start':
+      if (evt.count === 0) {
+        addInfoCard(`No historical data found in ${evt.mv} for the last ${evt.since}.`);
+      } else {
+        inHistoryPhase = true;
+        setStatus('hist', `Loading ${evt.count} historical messages from ${evt.mv} (last ${evt.since})…`);
+      }
+      break;
+    case 'history_done':
+      inHistoryPhase = false;
+      if (evt.count > 0) {
+        addLiveDivider(evt.count);
+        document.getElementById('streamBody').scrollTop = 0;
+        autoScroll = false;   // stay on history — user can scroll down to live
+        document.getElementById('scrollBtn').classList.add('visible');
+      }
+      setStatus('live', `History loaded (${evt.count}). Streaming live… (↓ to follow)`);
+      break;
+    case 'history':
+      histCnt++;
+      updateCounts();
+      addMessage('hist', evt.topic, evt.payload, evt.ts);
+      break;
+    case 'live':
+      liveCnt++;
+      updateCounts();
+      addMessage('live', evt.topic, evt.payload, evt.ts);
+      break;
+    case 'error':
+      setStatus('error', evt.message);
+      addInfoCard(`⚠ ${evt.message}`, true);
+      break;
+    case 'ping':
+      break;
+  }
+}
+
+// ── Message card ──────────────────────────────────────────────────────────────
+function addMessage(kind, topic, payload, ts) {
+  const body = document.getElementById('streamBody');
+  body.querySelector('.empty-state')?.remove();
+
+  const card = document.createElement('div');
+  card.className = 'msg-card' + (kind === 'live' ? ' new-live' : '');
+
+  const tsDisplay = ts ? new Date(ts).toLocaleTimeString('en-US', { hour12: false }) : '';
+  const summaryLine = buildSummary(payload);
+
+  card.innerHTML = `
+    <div class="msg-header" onclick="this.parentElement.classList.toggle('expanded')">
+      <span class="msg-tag ${kind}">${kind === 'hist' ? 'HIST' : 'LIVE'}</span>
+      <span class="msg-topic" title="${topic}">${topic}</span>
+      ${summaryLine ? `<span class="msg-ts">${summaryLine}</span>` : ''}
+      <span class="msg-ts">${tsDisplay}</span>
+      <span class="msg-chevron">›</span>
+    </div>
+    <div class="msg-body">
+      <pre class="json">${syntaxHighlight(JSON.stringify(payload, null, 2))}</pre>
+    </div>`;
+
+  body.appendChild(card);
+  if (autoScroll && !inHistoryPhase) {
+    body.scrollTop = body.scrollHeight;
+  } else if (!autoScroll && !inHistoryPhase) {
+    document.getElementById('scrollBtn').classList.add('visible');
+  }
+
+  // Prune to 500 messages
+  const cards = body.querySelectorAll('.msg-card');
+  if (cards.length > 500) cards[0].remove();
+}
+
+function buildSummary(payload) {
+  if (payload.speed_mph !== undefined) return `${Number(payload.speed_mph).toFixed(1)} mph`;
+  if (payload.event_type) return payload.event_type;
+  if (payload.fuel_level_pct !== undefined) return `${Number(payload.fuel_level_pct).toFixed(0)}%`;
+  if (payload.engine_temp_f !== undefined) return `${Number(payload.engine_temp_f).toFixed(0)}°F`;
+  if (payload.latitude !== undefined) return `${Number(payload.latitude).toFixed(4)}, ${Number(payload.longitude).toFixed(4)}`;
+  if (payload.vehicle_id) return payload.vehicle_id;
+  return '';
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+      if (/^"/.test(m)) {
+        if (/:$/.test(m)) return `<span style="color:var(--sky-blue)">${m}</span>`;
+        return `<span style="color:var(--bright-green)">${m}</span>`;
+      }
+      if (/true|false/.test(m)) return `<span style="color:var(--classic-green)">${m}</span>`;
+      if (/null/.test(m)) return `<span style="color:var(--text-muted)">${m}</span>`;
+      return `<span style="color:var(--orange)">${m}</span>`;
+    });
+}
+
+function addInfoCard(msg, isError = false) {
+  const body = document.getElementById('streamBody');
+  body.querySelector('.empty-state')?.remove();
+  const el = document.createElement('div');
+  el.style.cssText = `font-family:var(--font-mono);font-size:11px;padding:7px 12px;border-radius:var(--radius);
+    margin-bottom:5px;background:rgba(3,33,59,0.4);
+    border-left:2px solid ${isError ? 'var(--orange)' : 'var(--text-muted)'};
+    color:${isError ? 'var(--orange)' : 'var(--text-muted)'};`;
+  el.textContent = msg;
+  body.appendChild(el);
+  if (autoScroll && !inHistoryPhase) body.scrollTop = body.scrollHeight;
+}
+
+function addLiveDivider(histCount) {
+  const body = document.getElementById('streamBody');
+  const el = document.createElement('div');
+  el.style.cssText = `display:flex;align-items:center;gap:8px;margin:10px 0 6px;font-family:var(--font-mono);font-size:10px;`;
+  el.innerHTML = `
+    <div style="flex:1;height:1px;background:rgba(0,200,149,0.3)"></div>
+    <span style="color:var(--classic-green);white-space:nowrap">↑ ${histCount} historical  ·  LIVE below ↓</span>
+    <div style="flex:1;height:1px;background:rgba(0,200,149,0.3)"></div>`;
+  body.appendChild(el);
+}
+
+function clearMessages() {
+  document.getElementById('streamBody').innerHTML =
+    '<div class="empty-state" id="emptyState"><div class="empty-icon">📡</div><div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div></div>';
+  histCnt = 0; liveCnt = 0; updateCounts();
+  setStatus('idle', 'Cleared');
+}
+
+// ── Scroll management ─────────────────────────────────────────────────────────
+const streamBody = document.getElementById('streamBody');
+streamBody.addEventListener('scroll', () => {
+  const atBottom = streamBody.scrollHeight - streamBody.scrollTop - streamBody.clientHeight < 40;
+  autoScroll = atBottom;
+  document.getElementById('scrollBtn').classList.toggle('visible', !atBottom);
+});
+
+function scrollToBottom() {
+  autoScroll = true;
+  streamBody.scrollTop = streamBody.scrollHeight;
+  document.getElementById('scrollBtn').classList.remove('visible');
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function updateCounts() {
+  document.getElementById('histCount').textContent  = histCnt;
+  document.getElementById('liveCount').textContent  = liveCnt;
+  document.getElementById('totalCount').textContent = histCnt + liveCnt;
+}
+
+function setStatus(type, msg) {
+  const icons = { info: '●', live: '◉', hist: '▷', error: '✗', idle: '○' };
+  const colors = { info:'var(--text-muted)', live:'var(--classic-green)', hist:'var(--orange)', error:'var(--orange)', idle:'var(--text-muted)' };
+  const bar = document.getElementById('statusBar');
+  bar.querySelector('.status-icon').textContent = icons[type] || '○';
+  bar.querySelector('.status-icon').style.color = colors[type] || 'var(--text-muted)';
+  document.getElementById('statusText').textContent = msg;
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
