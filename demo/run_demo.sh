@@ -186,6 +186,18 @@ bash config/solace/setup.sh localhost
 
 # ─── STEP 4: Initialize RisingWave schema ────────────────────────────────────
 log "=== STEP 4: Initializing RisingWave CDC table and materialized views ==="
+
+# Generate topic-mv-registry.yaml (read by solace+ CLI).
+# Use EP catalog if SOLACE_CLOUD_TOKEN is set; otherwise generate static mappings only.
+SOLACE_CLOUD_TOKEN="${SOLACE_CLOUD_TOKEN:-$(grep -E '^SOLACE_CLOUD_TOKEN=' .env 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' ')}"
+if [[ -n "${SOLACE_CLOUD_TOKEN}" ]]; then
+  log "  Generating topic-mv-registry.yaml from Event Portal catalog..."
+  SOLACE_CLOUD_TOKEN="${SOLACE_CLOUD_TOKEN}" ${PYTHON} generate_mvs.py 2>&1 | grep -E '(Wrote|ERROR|event)' | sed 's/^/  /' || true
+else
+  log "  SOLACE_CLOUD_TOKEN not set — generating static registry only..."
+  ${PYTHON} generate_mvs.py --skip-ep 2>&1 | sed 's/^/  /' || true
+fi
+
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 log "  RisingWave schema initialized."
 
