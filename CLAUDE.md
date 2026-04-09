@@ -4,52 +4,55 @@ Ground truth for this project. If code and this file disagree, trust the code an
 
 ---
 
----
-
 ## What This Is
 
-A working POC combining three technologies to demonstrate a true event-streaming architecture:
+A working POC combining two technologies to demonstrate a true event-streaming architecture:
 
 | Layer | Technology | Role |
 |---|---|---|
-| Real-time pub/sub | Solace Platform | Low-latency fan-out, rich topic hierarchies, SEMP v2 management |
-| Durable log | Redpanda | Replayable append-only record, Kafka-compatible |
+| Real-time pub/sub | Solace Platform | Low-latency fan-out, rich topic hierarchies, SEMP v2 management, REST Delivery Point |
 | Streaming analytics | RisingWave | Incremental SQL — every materialized view is a "virtual topic" |
-| Bridge | Solace Kafka Sender (built into broker) | Moves messages from Solace queue → Redpanda |
 
 Domain: IoT fleet monitoring — 20 simulated vehicles publishing telemetry and alerts.
+
+No Kafka/Redpanda intermediary and no custom connector code. Solace Platform's built-in REST
+Delivery Point (RDP) delivers messages directly to RisingWave's webhook endpoint via HTTP POST.
 
 ---
 
 ## Key Architecture Decisions
 
-### Single Redpanda topic
+### Solace RDP → RisingWave webhook (no broker intermediary)
 
-The Solace Kafka Sender routes **all** queue messages to one Redpanda topic (`fleet-events`).
-Every message embeds its original Solace topic in the `solace_topic` field.
-RisingWave uses `WHERE solace_topic LIKE 'fleet/telemetry/%'` to replace Solace wildcard subscriptions.
+Solace Platform's REST Delivery Point (RDP) is configured to receive messages from a durable
+queue (`rw-ingest`, subscribed to `fleet/>`) and HTTP POST each payload directly to
+RisingWave's webhook endpoint on port 4560. No custom connector code required — the RDP is a
+built-in Solace feature configured entirely via SEMP v2.
 
-This is intentional. One topic simplifies the sender config and lets SQL handle fan-out.
+Every message already embeds its original Solace topic in the `solace_topic` field (set by
+the generator). RisingWave uses `WHERE data->>'solace_topic' LIKE 'fleet/telemetry/%'` to
+replace Solace wildcard subscriptions with SQL predicates.
 
-### `fleet_all_raw` unified source
+### `fleet_all_raw` webhook TABLE
 
-RisingWave has one SOURCE (`fleet_all_raw`) that reads `fleet-events` with all possible fields
-from all message types declared (nullable). Three routing MVs filter by `solace_topic`:
+RisingWave has one webhook TABLE (`fleet_all_raw`) with a single `data JSONB` column.
+The entire JSON body of each HTTP POST from the RDP maps to this column. Three routing MVs
+filter by topic:
 
 ```
-fleet_all_raw (SOURCE)
-  ├── fleet_telemetry_raw  (MV — WHERE solace_topic LIKE 'fleet/telemetry/%')
-  ├── fleet_events_raw     (MV — WHERE solace_topic LIKE 'fleet/events/%')
-  └── fleet_commands_raw   (MV — WHERE solace_topic LIKE 'fleet/commands/%')
+fleet_all_raw (webhook TABLE — Solace RDP HTTP POST → port 4560)
+  ├── fleet_telemetry_raw  (MV — WHERE data->>'solace_topic' LIKE 'fleet/telemetry/%')
+  ├── fleet_events_raw     (MV — WHERE data->>'solace_topic' LIKE 'fleet/events/%')
+  └── fleet_commands_raw   (MV — WHERE data->>'solace_topic' LIKE 'fleet/commands/%')
 ```
 
-Analytics MVs build on the routing MVs. TUMBLE windowing queries `fleet_all_raw` directly
-(not a derived MV) to avoid watermark propagation issues.
+Analytics MVs build on the routing MVs. TUMBLE windowing uses `fleet_telemetry_raw` (which
+has typed columns extracted from JSONB) as the source.
 
-### FORMAT PLAIN ENCODE JSON
+### Webhook source
 
-RisingWave's JSON ingestion is lenient — fields absent in a given message arrive as NULL.
-This is what allows a single source schema to handle telemetry, alert, and command payloads.
+`fleet_all_raw` uses `connector = 'webhook'` (TABLE, not SOURCE). The webhook endpoint URL
+is `http://risingwave:4560/webhook/dev/public/fleet_all_raw`. No auth is required.
 
 ---
 
@@ -57,18 +60,17 @@ This is what allows a single source schema to handle telemetry, alert, and comma
 
 | Path | Purpose |
 |---|---|
-| `docker-compose.yml` | Six services: solace, redpanda, redpanda-console, risingwave, fleet-generator, fleet-agent |
-| `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, queue `q/redpanda-bridge`, topic subscription `fleet/>`, Kafka Sender `redpanda-sender` with queue binding |
-| `config/redpanda/setup.sh` | Creates `fleet-events` topic via `rpk` |
+| `docker-compose.yml` | Five services: solace, risingwave, fleet-generator, fleet-agent, ep-setup |
+| `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, queue `rw-ingest`, RDP `risingwave-rdp`, REST Consumer → `risingwave:4560` |
 | `create_ep_objects.sh` | Creates Fleet Operations domain, schemas, events, and applications in Solace Event Portal via REST API; reads `SOLACE_CLOUD_TOKEN` from `.env` |
 | `generate_mvs.py` | Queries EP catalog → regenerates `config/risingwave/init.sql`; adds one MV per event version; run after adding/changing EP events |
-| `config/risingwave/init.sql` | Auto-generated by `generate_mvs.py` — DROP + CREATE for all sources and MVs; idempotent — safe to re-run |
+| `config/risingwave/init.sql` | Auto-generated by `generate_mvs.py` — DROP + CREATE for all tables and MVs; idempotent — safe to re-run |
 | `generator/generator.py` | 20-vehicle fleet simulator; publishes via Solace Platform Python SDK |
 | `generator/requirements.txt` | `solace-pubsubplus` (SDK package name) |
 | `generator/Dockerfile` | Python 3.11-slim image; copies generator.py + entrypoint.sh |
 | `generator/entrypoint.sh` | Polls SEMP until `streaming-poc` VPN exists, then starts generator; supports `BURST` env var |
-| `demo/run_demo.sh` | End-to-end orchestrator: build → health checks → configure → init schema → demo queries |
-| `demo/stop_demo.sh` | Tears down all services and **deletes volumes** (`solace-data`, `redpanda-data`) by default; pass `--keep-volumes` to preserve data |
+| `demo/run_demo.sh` | End-to-end orchestrator: build → health checks → configure Solace → init schema → wait for data |
+| `demo/stop_demo.sh` | Tears down all services and **deletes volumes** (`solace-data`) by default; pass `--keep-volumes` to preserve data |
 | `demo/demo_queries.sh` | 7-query walkthrough illustrating virtual topic pattern |
 | `demo/app.py` | FastAPI backend: 7 Claude tools backed by RisingWave SQL; SSE streaming `/chat` endpoint |
 | `demo/index.html` | Solace-branded single-page UI; chat + Agent Activity panels; live fleet stats bar |
@@ -105,7 +107,7 @@ fleet/commands/{vehicle_id}/{command_type}
 | `medium_severity_alerts` | `fleet/events/*/alerts/medium` | — |
 | `low_severity_alerts` | `fleet/events/*/alerts/low` | — |
 | `vehicle_speeds` | `fleet/telemetry/*/metrics/speed` | — |
-| `vehicle_speed_5min_avg` | *(no equivalent)* | TUMBLE window on `fleet_all_raw` |
+| `vehicle_speed_5min_avg` | *(no equivalent)* | TUMBLE window on `fleet_telemetry_raw` |
 | `fleet_alert_summary` | *(no equivalent)* | Rolling 1h count, grouped by severity |
 | `vehicle_fuel_levels` | `fleet/telemetry/*/metrics/fuel_level` | — |
 | `high_engine_temp_vehicles` | `fleet/telemetry/*/metrics/engine_temp` + filter | value > 220°F |
@@ -123,11 +125,8 @@ fleet/commands/{vehicle_id}/{command_type}
 | Solace SEMP admin | 8180 | Host 8080 was in use; mapped to 8180 |
 | Solace SMF (SDK) | 55555 | Native Solace protocol |
 | Solace MQTT | 1883 | — |
-| Redpanda Kafka API (internal) | 9092 | Used by Solace Kafka Sender and RisingWave |
-| Redpanda Kafka API (external) | 19092 | Host access for `rpk` |
-| Redpanda Schema Registry | 8081 | — |
-| Redpanda Console UI | 8888 | → maps to container 8080 |
 | RisingWave SQL (psql) | 4566 | Postgres wire protocol |
+| RisingWave webhook | 4560 | HTTP POST from Solace RDP → `fleet_all_raw` table |
 | RisingWave Dashboard | 5691 | — |
 | Fleet Agent UI | 8090 | Agentic demo — FastAPI + Claude + RisingWave tools |
 | fleet-generator | — | No host port; internal container publishes to Solace on streaming-net |
@@ -138,7 +137,7 @@ fleet/commands/{vehicle_id}/{command_type}
 
 ### Full demo (first run — builds images)
 ```bash
-chmod +x demo/run_demo.sh demo/demo_queries.sh config/solace/setup.sh config/redpanda/setup.sh
+chmod +x demo/run_demo.sh demo/demo_queries.sh config/solace/setup.sh
 ./demo/run_demo.sh
 ```
 
@@ -155,8 +154,7 @@ chmod +x demo/run_demo.sh demo/demo_queries.sh config/solace/setup.sh config/red
 ### Manual steps (if running piece by piece)
 ```bash
 docker-compose up -d
-bash config/solace/setup.sh localhost   # also creates Kafka Sender
-bash config/redpanda/setup.sh
+bash config/solace/setup.sh localhost   # creates VPN, client profile, ACL, user, queue, RDP
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 # fleet-generator and fleet-agent start automatically as containers
 ```
@@ -219,13 +217,14 @@ python3 generate_mvs.py --dry-run
 
 ---
 
-## Kafka Sender Notes
+## RDP Notes
 
-- Configured via SEMP v2 REST in `config/solace/setup.sh` — no external service required
-- Sender name: `redpanda-sender`; bootstrap address: `redpanda:9092` (Docker-internal hostname)
-- Queue binding: `q/redpanda-bridge` → Kafka topic `fleet-events`
-- Authentication: `none` (plain Kafka, no SASL/TLS needed within the Docker network)
-- To verify the sender is running: `GET /SEMP/v2/config/msgVpns/streaming-poc/kafkaSenders/redpanda-sender`
+- Queue `rw-ingest` subscribes to `fleet/>` — receives ALL fleet messages
+- REST Delivery Point `risingwave-rdp` uses the `default` client profile
+- REST Consumer `fleet-webhook` POSTs to `risingwave:4560`; `Content-Type: application/json` header set
+- Queue binding maps `rw-ingest` → `/webhook/dev/public/fleet_all_raw`
+- Webhook endpoint: `http://risingwave:4560/webhook/dev/public/fleet_all_raw`
+- No auth on RisingWave webhook endpoint (optional — not configured)
 
 ---
 
@@ -233,11 +232,10 @@ python3 generate_mvs.py --dry-run
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `fleet_telemetry_raw` returns 0 rows | Wrong topic name in SOURCE | Re-run `init.sql`; source must read `fleet-events` |
-| No rows in Redpanda `fleet-events` | Kafka Sender not running | Check SEMP: `GET .../kafkaSenders/redpanda-sender`; confirm `enabled:true` and VPN is up |
+| `fleet_telemetry_raw` returns 0 rows | RDP not delivering to RisingWave | Check `docker logs risingwave`; verify RDP and queue binding exist in SEMP |
+| RDP not delivering | Queue `rw-ingest` or RDP not configured | Re-run `config/solace/setup.sh`; check SEMP at http://localhost:8180 |
 | Generator not publishing | VPN not yet configured | `generator/entrypoint.sh` polls SEMP — run `docker logs -f fleet-generator` to see wait status |
 | SEMP calls fail silently | `curl -sf` swallows errors | Use `curl -s` to see error body |
-| Queue has no subscriptions | `setup.sh` error not surfaced | Check SEMP: `GET /msgVpns/streaming-poc/queues/q%2Fredpanda-bridge/subscriptions` |
 | `psql: command not found` | Client not installed | `sudo apt-get install -y postgresql-client` |
 | Fleet Agent UI shows "DEMO" tag | RisingWave unreachable or no data | Confirm RisingWave is healthy; UI falls back to mock data automatically |
 | Fleet Agent UI `401 Unauthorized` | Missing or wrong `ANTHROPIC_API_KEY` | Check `.env` at project root; ensure it exists (copy from `.env.template`) |

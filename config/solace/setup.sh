@@ -17,9 +17,9 @@ semp_post() {
   local response
   response=$(curl -s -u "${CREDS}" -X POST "${SEMP_BASE}${path}" \
     -H "Content-Type: application/json" -d "${body}" 2>&1)
-  # 400 with "already exists" is acceptable — treat as success
-  if echo "${response}" | grep -q '"status":"ERROR"' && \
-     ! echo "${response}" | grep -qi 'already exists\|ALREADY_EXISTS\|6\b'; then
+  # Any non-2xx response is a failure, EXCEPT "already exists" which is idempotent.
+  if echo "${response}" | grep -q '"responseCode":[^2]' && \
+     ! echo "${response}" | grep -qi 'already.exists\|ALREADY_EXISTS'; then
     echo "[solace-setup] ERROR on POST ${path}:" >&2
     echo "${response}" >&2
     exit 1
@@ -79,61 +79,79 @@ semp_post "/msgVpns/${VPN}/clientUsernames" "$(cat <<JSON
 JSON
 )"
 
-# ── 5. Queues ────────────────────────────────────────────────────────────────
-create_queue() {
-  local qname="$1"
-  local encoded_qname
-  encoded_qname=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$qname', safe=''))" 2>/dev/null \
-    || echo "${qname//\//%2F}")
+# --- RDP: Solace → RisingWave webhook ---
+# Guaranteed delivery path: fleet/> → durable queue → REST Delivery Point →
+# HTTP POST to RisingWave webhook endpoint (risingwave:4560/webhook/dev/public/fleet_all_raw)
 
-  log "Creating queue: ${qname}" >&2
-  semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
+# ── 5. Durable ingest queue ───────────────────────────────────────────────────
+log "Creating queue: rw-ingest"
+semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 {
-  "queueName": "${qname}",
-  "accessType": "exclusive",
-  "egressEnabled": true,
+  "queueName": "rw-ingest",
   "ingressEnabled": true,
-  "permission": "consume",
-  "maxMsgSpoolUsage": 200
+  "egressEnabled": true,
+  "accessType": "exclusive",
+  "permission": "no-access",
+  "maxMsgSpoolUsage": 100
 }
 JSON
 )"
-  echo "${encoded_qname}"
-}
 
-# Main bridge queue — captures ALL fleet events from Solace for the connector
-ENC_MAIN=$(create_queue "q/redpanda-bridge")
-
-# ── 6. Topic subscriptions on queues ─────────────────────────────────────────
-log "Adding subscriptions to q/redpanda-bridge"
-semp_post "/msgVpns/${VPN}/queues/${ENC_MAIN}/subscriptions" \
-  '{"subscriptionTopic": "fleet/>"}'
-
-# ── 7. Kafka Sender (built-in Solace → Redpanda bridge) ─────────────────────
-log "Creating Kafka Sender: redpanda-sender"
-semp_post "/msgVpns/${VPN}/kafkaSenders" "$(cat <<JSON
+# ── 6. Topic subscription on rw-ingest ───────────────────────────────────────
+log "Adding subscription fleet/> to rw-ingest"
+semp_post "/msgVpns/${VPN}/queues/rw-ingest/subscriptions" "$(cat <<JSON
 {
-  "kafkaSenderName": "redpanda-sender",
-  "bootstrapAddressList": "redpanda:9092",
-  "authenticationScheme": "none",
+  "subscriptionTopic": "fleet/>"
+}
+JSON
+)"
+
+# ── 7. REST Delivery Point ────────────────────────────────────────────────────
+log "Creating REST Delivery Point: risingwave-rdp"
+semp_post "/msgVpns/${VPN}/restDeliveryPoints" "$(cat <<JSON
+{
+  "restDeliveryPointName": "risingwave-rdp",
+  "enabled": true,
+  "clientProfileName": "default"
+}
+JSON
+)"
+
+# ── 8. REST Consumer (points at RisingWave webhook HTTP server on port 4560) ──
+log "Creating REST Consumer: fleet-webhook → risingwave:4560"
+semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers" "$(cat <<JSON
+{
+  "restConsumerName": "fleet-webhook",
+  "remoteHost": "risingwave",
+  "remotePort": 4560,
+  "tlsEnabled": false,
   "enabled": true
 }
 JSON
 )"
 
-log "Creating queue binding: q/redpanda-bridge → fleet-events"
-# URL-encode the sender name for the path (no special chars needed here)
-semp_post "/msgVpns/${VPN}/kafkaSenders/redpanda-sender/queueBindings" "$(cat <<JSON
+# ── 9. Content-Type header on REST Consumer ───────────────────────────────────
+log "Setting Content-Type: application/json on fleet-webhook"
+semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers/fleet-webhook/requestHeaders" "$(cat <<JSON
 {
-  "queueBindingName": "q/redpanda-bridge",
-  "remoteTopicName": "fleet-events",
-  "enabled": true
+  "headerName": "Content-Type",
+  "headerValue": "application/json"
+}
+JSON
+)"
+
+# ── 10. Queue Binding ─────────────────────────────────────────────────────────
+log "Creating queue binding: rw-ingest → /webhook/dev/public/fleet_all_raw"
+semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/queueBindings" "$(cat <<JSON
+{
+  "queueBindingName": "rw-ingest",
+  "postRequestTarget": "/webhook/dev/public/fleet_all_raw"
 }
 JSON
 )"
 
 log "Solace setup complete."
-log "  VPN:           ${VPN}"
-log "  User:          streaming-user / default"
-log "  Queue:         q/redpanda-bridge  →  fleet/>"
-log "  Kafka Sender:  redpanda-sender  →  redpanda:9092  →  fleet-events"
+log "  VPN:   ${VPN}"
+log "  User:  streaming-user / default"
+log "  Queue: rw-ingest  →  fleet/>"
+log "  RDP:   risingwave-rdp → risingwave:4560/webhook/dev/public/fleet_all_raw"

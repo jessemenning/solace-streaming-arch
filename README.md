@@ -1,27 +1,24 @@
 # Solace Streaming Architecture — Fleet Monitoring POC
 
-A working proof-of-concept combining the **Solace Platform** event broker,
-**Redpanda** (durable log), and **RisingWave** (streaming SQL engine) to
-demonstrate the "virtual topic" pattern: replace Solace wildcard subscriptions
-with SQL materialized views.
+A working proof-of-concept combining the **Solace Platform** event broker and
+**RisingWave** (streaming SQL engine) to demonstrate the "virtual topic" pattern:
+replace Solace wildcard subscriptions with SQL materialized views.
 
 > **Developer docs:** [CLAUDE.md](CLAUDE.md) — architecture decisions, file map, port map, troubleshooting  
-> **Business rationale:** [BUSINESS.md](BUSINESS.md) — why this architecture, comparisons, applicability
+> **Business rationale:** [BUSINESS.md](docs/BUSINESS.md) — why this architecture, comparisons, applicability
 
 ---
 
 ## Core Concept
 
-**Solace handles routing and fan-out. Redpanda is the durable log. RisingWave
-turns Solace's dynamic topic space into SQL materialized views — replacing
-"topic design" with "query design."**
+**Solace handles routing and fan-out. RisingWave turns Solace's dynamic topic space
+into SQL materialized views — replacing "topic design" with "query design."**
 
 | Layer | Technology | Role |
 |---|---|---|
 | Real-time pub/sub | Solace Platform | Low-latency fan-out, rich topic hierarchies |
-| Durable log | Redpanda | Replayable append-only record |
+| Delivery | Solace REST Delivery Point (built-in) | Pushes messages from queue → RisingWave webhook |
 | Streaming analytics | RisingWave | Incremental SQL — every view is a "virtual topic" |
-| Bridge | Solace Kafka Sender (built into broker) | Moves messages from Solace → Redpanda |
 
 ---
 
@@ -36,14 +33,15 @@ turns Solace's dynamic topic space into SQL materialized views — replacing
 ### Full demo (first run)
 
 ```bash
-chmod +x demo/run_demo.sh demo/demo_queries.sh config/solace/setup.sh config/redpanda/setup.sh
+chmod +x demo/run_demo.sh demo/demo_queries.sh config/solace/setup.sh
 ./demo/run_demo.sh
 ```
 
 The script builds images for the fleet generator and the Fleet Agent UI;
-starts all services; configures Solace Platform (including the built-in Kafka Sender bridge);
-creates the Redpanda topic; initializes RisingWave; and opens the Fleet Agent UI automatically.
-The fleet generator and AI agent UI start automatically as containers — no host Python required.
+starts all services; configures Solace Platform (including the built-in REST Delivery Point
+that bridges the queue to RisingWave's webhook); initializes RisingWave; and opens the
+Fleet Agent UI automatically. The fleet generator and AI agent UI start automatically as
+containers — no host Python required.
 
 ### Restart after reboot (skip rebuild)
 
@@ -66,8 +64,8 @@ Sends continuous high-severity alerts from `vehicle_005` — useful for live dem
 ./demo/stop_demo.sh
 ```
 
-Stops all services, removes orphaned containers, and **deletes volumes** (`solace-data`,
-`redpanda-data`) so the next run starts completely fresh. To preserve data instead:
+Stops all services, removes orphaned containers, and **deletes volumes** (`solace-data`)
+so the next run starts completely fresh. To preserve data instead:
 
 ```bash
 ./demo/stop_demo.sh --keep-volumes
@@ -106,7 +104,6 @@ FROM vehicles_in_region_boston ORDER BY recorded_at DESC LIMIT 10;
 |---|---|---|
 | **Fleet Operations AI (agentic demo)** | **http://localhost:8090** | — |
 | Solace Platform admin | http://localhost:8180 | admin / admin |
-| Redpanda Console | http://localhost:8888 | — |
 | RisingWave Dashboard | http://localhost:5691 | — |
 | Solace SMF (SDK) | tcp://localhost:55555 | streaming-user / default |
 | RisingWave SQL | localhost:4566 | root / *(none)* |
@@ -115,9 +112,10 @@ FROM vehicles_in_region_boston ORDER BY recorded_at DESC LIMIT 10;
 
 ## Data Streams
 
-All messages flow through a single Redpanda topic (`fleet-events`). Every message
-embeds its original Solace topic address in the `solace_topic` field. RisingWave
-uses SQL `WHERE` clauses on that field to replace Solace wildcard subscriptions.
+All messages flow through a single Solace queue (`rw-ingest`). The Solace REST Delivery Point
+HTTP POSTs each payload to RisingWave's webhook endpoint. Every message embeds its original
+Solace topic address in the `solace_topic` field. RisingWave uses SQL `WHERE` clauses on that
+field to replace Solace wildcard subscriptions.
 
 ### Topic hierarchy (simulator output)
 
@@ -176,11 +174,9 @@ solace-streaming-arch/
 ├── generate_mvs.py                   Regenerates init.sql from EP event catalog
 ├── config/
 │   ├── solace/
-│   │   └── setup.sh                  SEMP v2 — VPN, queue, user, Kafka Sender to Redpanda
-│   ├── redpanda/
-│   │   └── setup.sh                  rpk topic creation
+│   │   └── setup.sh                  SEMP v2 — VPN, queue rw-ingest, REST Delivery Point
 │   └── risingwave/
-│       └── init.sql                  Auto-generated by generate_mvs.py — all sources + MVs
+│       └── init.sql                  Auto-generated by generate_mvs.py — all tables + MVs
 ├── docs/
 │   └── BUSINESS.md                   Business rationale and stakeholder overview
 ├── generator/
@@ -205,10 +201,10 @@ solace-streaming-arch/
 **Solace takes too long to start**  
 The community broker image takes 60–90 seconds on first boot. `run_demo.sh` waits up to 3 minutes.
 
-**RisingWave sources return no rows**  
-1. Confirm Kafka Sender is running: `curl -u admin:admin http://localhost:8180/SEMP/v2/config/msgVpns/streaming-poc/kafkaSenders/redpanda-sender`  
-2. Confirm messages in Redpanda: `docker exec redpanda rpk topic consume fleet-events --num 3`  
-3. Confirm queue has a subscription: `curl -u admin:admin http://localhost:8180/SEMP/v2/monitor/msgVpns/streaming-poc/queues/q%2Fredpanda-bridge/subscriptions`
+**RisingWave views return no rows**  
+1. Confirm queue has messages: check SEMP at http://localhost:8180 → `streaming-poc` VPN → Queues → `rw-ingest`  
+2. Confirm RDP is active: check `risingwave-rdp` REST Delivery Point in SEMP  
+3. Re-run `config/solace/setup.sh` if RDP is missing
 
 **psql: command not found**  
 `sudo apt-get install -y postgresql-client`

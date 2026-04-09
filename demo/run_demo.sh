@@ -5,12 +5,10 @@
 # Orchestrates:
 #   1. docker-compose up (all infrastructure)
 #   2. Wait for all services to be healthy
-#   3. Configure Solace Platform (SEMP v2) + Kafka Sender to Redpanda
-#   4. Create Redpanda topics
-#   5. Initialize RisingWave schema (sources + materialized views)
-#   6. Start fleet telemetry generator in the background
-#   7. Wait for data to flow through the pipeline
-#   8. Auto-launch Fleet Operations AI UI
+#   3. Configure Solace Platform (SEMP v2) — VPN, user, ACL
+#   4. Initialize RisingWave schema (CDC table + materialized views)
+#   5. Wait for data to flow through the pipeline
+#   6. Auto-launch Fleet Operations AI UI
 #
 # Requirements: docker, docker-compose, psql, curl, python3
 # Usage: ./demo/run_demo.sh [--burst] [--skip-build]
@@ -99,6 +97,23 @@ wait_for_psql() {
   log "RisingWave is ready."
 }
 
+# ── Helper: wait for TCP port ────────────────────────────────────────────────
+wait_for_port() {
+  local label="$1"
+  local host="$2"
+  local port="$3"
+  local max_wait="${4:-180}"
+  local elapsed=0
+  log "Waiting for ${label} at ${host}:${port}..."
+  while ! bash -c "echo > /dev/tcp/${host}/${port}" 2>/dev/null; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+    [[ ${elapsed} -ge ${max_wait} ]] && fail "${label} did not become available within ${max_wait}s"
+    log "  still waiting for ${label}... (${elapsed}s)"
+  done
+  log "${label} is ready."
+}
+
 # ─── STEP 1: Build and start infrastructure ───────────────────────────────────
 log "=== STEP 1: Starting infrastructure ==="
 if [[ "${SKIP_BUILD}" == "true" ]]; then
@@ -118,30 +133,21 @@ wait_for_url "Solace Platform SEMP" \
   "http://localhost:8180/SEMP/v2/config/about/api" \
   "admin:admin" 180
 
-wait_for_url "Redpanda Schema Registry" \
-  "http://localhost:8081/subjects" \
-  "" 120
-
 wait_for_psql "localhost" 4566 120
 
 log "All services healthy."
 
-# ─── STEP 3: Configure Solace Platform + Kafka Sender ────────────────────────
-log "=== STEP 3: Configuring Solace Platform (VPN, queue, Kafka Sender) ==="
+# ─── STEP 3: Configure Solace Platform ──────────────────────────────────────
+log "=== STEP 3: Configuring Solace Platform (VPN, user) ==="
 bash config/solace/setup.sh localhost
-log "  Kafka Sender 'redpanda-sender' configured: q/redpanda-bridge → redpanda:9092/fleet-events"
 
-# ─── STEP 4: Create Redpanda topics ──────────────────────────────────────────
-log "=== STEP 4: Creating Redpanda topics ==="
-bash config/redpanda/setup.sh
-
-# ─── STEP 5: Initialize RisingWave schema ────────────────────────────────────
-log "=== STEP 5: Initializing RisingWave sources and materialized views ==="
+# ─── STEP 4: Initialize RisingWave schema ────────────────────────────────────
+log "=== STEP 4: Initializing RisingWave CDC table and materialized views ==="
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 log "  RisingWave schema initialized."
 
-# ─── STEP 6: Generator ───────────────────────────────────────────────────────
-log "=== STEP 6: Fleet telemetry generator ==="
+# ─── STEP 5: Generator ───────────────────────────────────────────────────────
+log "=== STEP 5: Fleet telemetry generator ==="
 log "  Running as container fleet-generator (started by docker-compose)."
 log "  It will begin publishing once the streaming-poc VPN is ready."
 if [[ "${BURST_MODE}" == "true" ]]; then
@@ -149,9 +155,9 @@ if [[ "${BURST_MODE}" == "true" ]]; then
   BURST=true docker-compose up -d fleet-generator
 fi
 
-# ─── STEP 7: Wait for data to propagate ──────────────────────────────────────
-log "=== STEP 7: Waiting 35 seconds for data to flow through pipeline ==="
-log "  Solace → Kafka Sender → Redpanda → RisingWave"
+# ─── STEP 6: Wait for data to propagate ──────────────────────────────────────
+log "=== STEP 6: Waiting 35 seconds for data to flow through pipeline ==="
+log "  Solace Platform → rw-ingest queue → risingwave-rdp (RDP) → RisingWave webhook"
 for i in {1..7}; do
   sleep 5
   count=$(
@@ -175,7 +181,6 @@ fi
 log ""
 log "  Explore live:"
 log "    http://localhost:8090    (Fleet Operations AI — agentic demo)"
-log "    http://localhost:8888    (Redpanda Console)"
 log "    http://localhost:5691    (RisingWave Dashboard)"
 log "    http://localhost:8180    (Solace Platform admin)"
 log "    psql -h localhost -p 4566 -U root -d dev"

@@ -4,7 +4,6 @@ networks:
 
 volumes:
   solace-data:
-  redpanda-data:
 
 services:
 
@@ -41,70 +40,9 @@ services:
       retries: 15
       start_period: 90s
 
-  # ─── Redpanda (Kafka-compatible durable log) ───────────────────────────────
-  redpanda:
-    image: redpandadata/redpanda:latest
-    container_name: redpanda
-    hostname: redpanda
-    networks:
-      - streaming-net
-    ports:
-      - "9092:9092"   # Kafka API (internal)
-      - "19092:19092" # Kafka API (external / host access)
-      - "8081:8081"   # Schema Registry
-      - "9644:9644"   # Admin API
-    command:
-      - redpanda
-      - start
-      - --overprovisioned
-      - --smp
-      - "1"
-      - --memory
-      - 1G
-      - --reserve-memory
-      - 0M
-      - --node-id
-      - "0"
-      - --check=false
-      - --kafka-addr
-      - internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr
-      - internal://redpanda:9092,external://localhost:19092
-      - --schema-registry-addr
-      - internal://0.0.0.0:8081,external://0.0.0.0:18081
-      - --rpc-addr
-      - redpanda:33145
-      - --advertise-rpc-addr
-      - redpanda:33145
-    volumes:
-      - redpanda-data:/var/lib/redpanda/data
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - "rpk topic list --brokers localhost:9092 > /dev/null 2>&1 || exit 1"
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
-  # ─── Redpanda Console (UI) ─────────────────────────────────────────────────
-  redpanda-console:
-    image: redpandadata/console:latest
-    container_name: redpanda-console
-    hostname: redpanda-console
-    networks:
-      - streaming-net
-    ports:
-      - "8888:8080"
-    environment:
-      - KAFKA_BROKERS=redpanda:9092
-      - KAFKA_SCHEMAREGISTRY_ENABLED=true
-      - KAFKA_SCHEMAREGISTRY_URLS=http://redpanda:8081
-    depends_on:
-      redpanda:
-        condition: service_healthy
-
   # ─── RisingWave (streaming SQL materialized views) ────────────────────────
+  # Receives fleet telemetry via Solace RDP → HTTP POST to webhook endpoint.
+  # Webhook endpoint: http://risingwave:4560/webhook/dev/public/fleet_all_raw
   risingwave:
     image: risingwavelabs/risingwave:latest
     container_name: risingwave
@@ -113,6 +51,7 @@ services:
       - streaming-net
     ports:
       - "4566:4566" # Frontend SQL (Postgres wire protocol)
+      - "4560:4560" # HTTP API — webhook ingestion endpoint
       - "5691:5691" # Dashboard / metadata
     command: playground
     healthcheck:
@@ -188,6 +127,3 @@ services:
       risingwave:
         condition: service_healthy
     restart: "no"
-
-  # Note: Solace → Redpanda bridge is handled by the Solace Kafka Sender
-  # configured in config/solace/setup.sh (no external connector service needed)

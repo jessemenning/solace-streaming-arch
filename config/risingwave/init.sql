@@ -2,16 +2,19 @@
 -- RisingWave Streaming SQL — Fleet Monitoring POC
 -- =============================================================================
 -- Architecture note:
---   The Solace Source Connector routes ALL queue messages to one Redpanda
---   topic (fleet-events).  Every message embeds its original Solace topic in
---   the `solace_topic` field.  RisingWave uses that field to filter streams —
---   replacing Solace wildcard subscriptions with SQL WHERE clauses.
+--   The Solace Platform REST Delivery Point (RDP) receives messages from the
+--   rw-ingest queue and HTTP POSTs each payload to RisingWave's webhook
+--   endpoint.  No connector-node, no Kafka, no Redpanda.
 --
---   fleet-events (Redpanda)
---     └─ fleet_all_raw          (source — everything)
---          ├─ fleet_telemetry_raw   (MV — WHERE solace_topic LIKE 'fleet/telemetry/%')
---          ├─ fleet_events_raw      (MV — WHERE solace_topic LIKE 'fleet/events/%')
---          └─ fleet_commands_raw    (MV — WHERE solace_topic LIKE 'fleet/commands/%')
+--   Every message embeds its original Solace topic in the `solace_topic`
+--   field.  RisingWave uses that field to filter streams — replacing Solace
+--   wildcard subscriptions with SQL WHERE clauses.
+--
+--   Solace Platform (fleet/>) → rw-ingest queue → risingwave-rdp RDP →
+--     HTTP POST → fleet_all_raw (webhook TABLE — data JSONB)
+--          ├─ fleet_telemetry_raw   (MV — solace_topic LIKE 'fleet/telemetry/%')
+--          ├─ fleet_events_raw      (MV — solace_topic LIKE 'fleet/events/%')
+--          └─ fleet_commands_raw    (MV — solace_topic LIKE 'fleet/commands/%')
 -- =============================================================================
 
 SET timezone = 'UTC';
@@ -32,47 +35,25 @@ DROP MATERIALIZED VIEW IF EXISTS high_severity_alerts         CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS fleet_telemetry_raw          CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS fleet_events_raw             CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS fleet_commands_raw           CASCADE;
+-- Drop as TABLE (webhook path) or SOURCE (legacy Kafka/connector-node path)
+DROP TABLE  IF EXISTS fleet_all_raw         CASCADE;
 DROP SOURCE IF EXISTS fleet_all_raw         CASCADE;
 DROP SOURCE IF EXISTS fleet_telemetry_raw   CASCADE;
 DROP SOURCE IF EXISTS fleet_events_raw      CASCADE;
 DROP SOURCE IF EXISTS fleet_commands_raw    CASCADE;
 
 
--- ── Unified source — one Redpanda topic, all message types ───────────────────
--- All fields from both telemetry and alert payloads are declared here.
--- Fields absent in a given message arrive as NULL (RisingWave JSON is lenient).
-CREATE SOURCE fleet_all_raw (
-    vehicle_id    VARCHAR,
-
-    -- Telemetry fields (null in alert / command messages)
-    metric_type   VARCHAR,
-    value         DOUBLE PRECISION,
-    unit          VARCHAR,
-    latitude      DOUBLE PRECISION,
-    longitude     DOUBLE PRECISION,
-    recorded_at   TIMESTAMPTZ,
-
-    -- Alert fields (null in telemetry / command messages)
-    event_type    VARCHAR,
-    severity      VARCHAR,
-    description   VARCHAR,
-    payload       JSONB,
-    occurred_at   TIMESTAMPTZ,
-
-    -- Command fields (null in telemetry / alert messages)
-    command_type  VARCHAR,
-    parameters    JSONB,
-    issued_at     TIMESTAMPTZ,
-    issued_by     VARCHAR,
-
-    -- Routing key — the original Solace topic address embedded in every message
-    solace_topic  VARCHAR
+-- ── Webhook ingest table — one row per Solace message, payload as JSONB ──────
+-- RisingWave webhook connector requires a single JSONB column.
+-- The Solace RDP POSTs the generator's JSON payload as the HTTP body.
+-- Every message includes solace_topic, enabling topic-based routing in MVs below.
+--
+-- Webhook endpoint: http://risingwave:4560/webhook/dev/public/fleet_all_raw
+CREATE TABLE fleet_all_raw (
+    data JSONB
 ) WITH (
-    connector                    = 'kafka',
-    topic                        = 'fleet-events',
-    properties.bootstrap.server  = 'redpanda:9092',
-    scan.startup.mode            = 'earliest'
-) FORMAT PLAIN ENCODE JSON;
+    connector = 'webhook'
+);
 
 
 -- ── Routing views — "virtual topic subscriptions" ────────────────────────────
@@ -80,24 +61,44 @@ CREATE SOURCE fleet_all_raw (
 --   fleet/telemetry/*/metrics/*
 -- is now:
 --   SELECT * FROM fleet_telemetry_raw;
+--
+-- Fields are extracted from the JSONB payload and cast to their correct types.
 
 CREATE MATERIALIZED VIEW fleet_telemetry_raw AS
-SELECT vehicle_id, metric_type, value, unit,
-       latitude, longitude, recorded_at, solace_topic
+SELECT
+    data->>'vehicle_id'                        AS vehicle_id,
+    data->>'metric_type'                       AS metric_type,
+    (data->>'value')::DOUBLE PRECISION         AS value,
+    data->>'unit'                              AS unit,
+    (data->>'latitude')::DOUBLE PRECISION      AS latitude,
+    (data->>'longitude')::DOUBLE PRECISION     AS longitude,
+    (data->>'recorded_at')::TIMESTAMPTZ        AS recorded_at,
+    data->>'solace_topic'                      AS solace_topic
 FROM   fleet_all_raw
-WHERE  solace_topic LIKE 'fleet/telemetry/%';
+WHERE  data->>'solace_topic' LIKE 'fleet/telemetry/%';
 
 CREATE MATERIALIZED VIEW fleet_events_raw AS
-SELECT vehicle_id, event_type, severity, description,
-       payload, occurred_at, solace_topic
+SELECT
+    data->>'vehicle_id'                        AS vehicle_id,
+    data->>'event_type'                        AS event_type,
+    data->>'severity'                          AS severity,
+    data->>'description'                       AS description,
+    (data->'payload')                          AS payload,
+    (data->>'occurred_at')::TIMESTAMPTZ        AS occurred_at,
+    data->>'solace_topic'                      AS solace_topic
 FROM   fleet_all_raw
-WHERE  solace_topic LIKE 'fleet/events/%';
+WHERE  data->>'solace_topic' LIKE 'fleet/events/%';
 
 CREATE MATERIALIZED VIEW fleet_commands_raw AS
-SELECT vehicle_id, command_type, parameters,
-       issued_at, issued_by, solace_topic
+SELECT
+    data->>'vehicle_id'                        AS vehicle_id,
+    data->>'command_type'                      AS command_type,
+    (data->'parameters')                       AS parameters,
+    (data->>'issued_at')::TIMESTAMPTZ          AS issued_at,
+    data->>'issued_by'                         AS issued_by,
+    data->>'solace_topic'                      AS solace_topic
 FROM   fleet_all_raw
-WHERE  solace_topic LIKE 'fleet/commands/%';
+WHERE  data->>'solace_topic' LIKE 'fleet/commands/%';
 
 
 -- =============================================================================
@@ -128,6 +129,7 @@ FROM   fleet_telemetry_raw
 WHERE  metric_type = 'speed';
 
 -- ─── 4. 5-minute tumbling window — speed averages per vehicle ────────────────
+-- Uses fleet_telemetry_raw (typed columns extracted from JSONB) as the TUMBLE source.
 CREATE MATERIALIZED VIEW vehicle_speed_5min_avg AS
 SELECT
     vehicle_id,
@@ -137,7 +139,7 @@ SELECT
     MAX(value)  AS max_speed_mph,
     MIN(value)  AS min_speed_mph,
     COUNT(*)    AS sample_count
-FROM TUMBLE(fleet_all_raw, recorded_at, INTERVAL '5 MINUTES')
+FROM TUMBLE(fleet_telemetry_raw, recorded_at, INTERVAL '5 MINUTES')
 WHERE metric_type = 'speed'
   AND recorded_at IS NOT NULL
 GROUP BY vehicle_id, window_start, window_end;
