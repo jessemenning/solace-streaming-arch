@@ -15,6 +15,7 @@
       --dark-green:   #009193;
       --orange:       #FCA829;
       --sky-blue:     #C2F7FF;
+      --sunrise:      #FFF7C2;
       --text:         #E8F4FF;
       --text-muted:   #7FA8C9;
       --border:       rgba(0,200,149,0.18);
@@ -90,8 +91,9 @@
       flex-direction: column;
       overflow: hidden;
     }
-    .panel-publisher  { width: 420px; flex-shrink: 0; border-right: 1px solid var(--border); }
-    .panel-subscriber { flex: 1; }
+    .panel-publisher  { width: 340px; flex-shrink: 0; border-right: 1px solid var(--border); }
+    .panel-subscriber { width: 360px; flex-shrink: 0; border-right: 1px solid var(--border); position: relative; }
+    .panel-query      { flex: 1; }
 
     .panel-header {
       padding: 14px 18px 10px;
@@ -376,7 +378,6 @@
     }
     .panel-publisher .pub-scroll::-webkit-scrollbar { width: 4px; }
     .panel-publisher .pub-scroll::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
-    .panel-subscriber { position: relative; }
 
     /* ── Empty state ───────────────────────────────────────────── */
     .empty-state {
@@ -386,6 +387,213 @@
     }
     .empty-icon { font-size: 36px; }
     .empty-text { font-size: 13px; line-height: 1.5; }
+
+    /* ══════════════════════════════════════════════════════════════
+       QUERY PANEL
+    ══════════════════════════════════════════════════════════════ */
+
+    /* ── Preset chips (bright-green accent) ───────────────────── */
+    .preset-chip {
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 3px 9px; border-radius: 20px;
+      border: 1px solid rgba(171,255,136,0.25);
+      color: var(--text-muted);
+      cursor: pointer; user-select: none;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .preset-chip:hover {
+      background: rgba(171,255,136,0.1);
+      color: var(--bright-green);
+      border-color: var(--bright-green);
+    }
+    .preset-chip.active {
+      background: rgba(171,255,136,0.18);
+      color: var(--bright-green);
+      border-color: var(--bright-green);
+    }
+
+    /* ── Preset groups ────────────────────────────────────────── */
+    .preset-group { padding: 10px 18px 0; }
+    .preset-group-label {
+      font-size: 10px; font-family: var(--font-mono);
+      text-transform: uppercase; color: var(--text-muted);
+      letter-spacing: 0.08em; margin-bottom: 5px;
+    }
+
+    /* ── Query controls scroll area ───────────────────────────── */
+    .query-controls {
+      flex-shrink: 0;
+      overflow-y: auto;
+      max-height: 48%;
+      border-bottom: 1px solid var(--border);
+    }
+    .query-controls::-webkit-scrollbar { width: 3px; }
+    .query-controls::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
+
+    /* ── Filter area ──────────────────────────────────────────── */
+    .query-filters {
+      padding: 10px 18px 12px;
+      border-top: 1px solid var(--border);
+    }
+    .preset-desc {
+      font-size: 11px; color: var(--text-muted); line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .filter-section-label {
+      font-size: 10px; font-family: var(--font-mono); text-transform: uppercase;
+      color: var(--text-muted); letter-spacing: 0.06em; margin-bottom: 5px; margin-top: 10px;
+    }
+    .filter-dur-row { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    .filter-sev-veh { margin-top: 10px; display: flex; gap: 12px; align-items: flex-start; }
+    .filter-block { flex: 1; }
+
+    /* ── Custom SQL ───────────────────────────────────────────── */
+    .custom-sql-toggle {
+      padding: 8px 18px;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; user-select: none;
+      font-size: 11px; font-family: var(--font-mono);
+      color: var(--text-muted); border-top: 1px solid var(--border);
+      transition: color 0.12s;
+    }
+    .custom-sql-toggle:hover { color: var(--text); }
+    .custom-sql-caret { transition: transform 0.15s; display: inline-block; }
+    .custom-sql-caret.open { transform: rotate(90deg); }
+
+    .custom-sql-section { padding: 0 18px 12px; display: none; }
+    .custom-sql-section.open { display: block; }
+    .sql-hint {
+      font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);
+      margin-top: 5px;
+    }
+
+    /* ── Limit row ────────────────────────────────────────────── */
+    .limit-row {
+      padding: 8px 18px 10px;
+      display: flex; align-items: center; gap: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .limit-row label { margin: 0; white-space: nowrap; }
+    .limit-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    /* ── Query metadata bar ───────────────────────────────────── */
+    .qmeta {
+      padding: 5px 18px;
+      background: rgba(3,33,59,0.8);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-muted);
+      display: none; align-items: center; gap: 12px;
+      flex-shrink: 0; min-height: 28px;
+      overflow: hidden;
+    }
+    .qmeta-ok  { color: var(--classic-green); white-space: nowrap; }
+    .qmeta-err { color: var(--orange); white-space: nowrap; }
+    .qmeta-sql {
+      flex: 1; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; opacity: 0.5;
+    }
+    .qmeta-time { white-space: nowrap; }
+
+    /* ── Results area ─────────────────────────────────────────── */
+    .qresults-wrap {
+      flex: 1;
+      overflow: auto;
+    }
+    .qresults-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
+    .qresults-wrap::-webkit-scrollbar-track { background: transparent; }
+    .qresults-wrap::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.25); border-radius: 3px; }
+
+    /* ── Results table ────────────────────────────────────────── */
+    .rtable-wrap { overflow: auto; min-width: 100%; }
+    table.rtable {
+      border-collapse: collapse;
+      font-family: var(--font-mono); font-size: 11px;
+      width: 100%;
+    }
+    table.rtable th {
+      background: rgba(9,59,95,0.95);
+      color: var(--text-muted);
+      text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em;
+      padding: 6px 12px; text-align: left;
+      position: sticky; top: 0; z-index: 2;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+    }
+    table.rtable td {
+      padding: 5px 12px;
+      border-bottom: 1px solid rgba(127,168,201,0.06);
+      vertical-align: top;
+      max-width: 280px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    table.rtable tr:hover td { background: rgba(0,200,149,0.04); }
+
+    /* Cell type colors */
+    .td-null   { color: var(--text-muted); font-style: italic; }
+    .td-num    { color: var(--orange); }
+    .td-ts     { color: var(--sky-blue); }
+    .td-str    { color: var(--text); }
+    .td-sev-high   { color: var(--orange); font-weight: 700; }
+    .td-sev-medium { color: var(--sunrise); font-weight: 600; }
+    .td-sev-low    { color: var(--classic-green); }
+    .td-json   { color: var(--text-muted); }
+
+    /* ── Collapsible publisher / subscriber panels ─────────── */
+    .panel-publisher, .panel-subscriber {
+      transition: width 0.2s ease;
+    }
+    .panel-publisher.collapsed  { width: 38px !important; }
+    .panel-subscriber.collapsed { width: 38px !important; }
+
+    .panel-collapse-tab {
+      display: none;
+      width: 38px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex: 1;
+      transition: background 0.12s;
+    }
+    .panel-collapse-tab:hover { background: rgba(0,200,149,0.08); }
+    .panel.collapsed .panel-collapse-tab { display: flex; }
+    .panel.collapsed .panel-content { display: none; }
+
+    .panel-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .panel-tab-label {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--classic-green);
+      user-select: none;
+      white-space: nowrap;
+      opacity: 0.8;
+    }
+
+    .panel-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      line-height: 1;
+      transition: color 0.12s, background 0.12s;
+      flex-shrink: 0;
+    }
+    .panel-toggle-btn:hover { color: var(--text); background: rgba(127,168,201,0.1); }
   </style>
 </head>
 <body>
@@ -404,13 +612,18 @@
 <div class="workspace">
 
   <!-- ═══════════════════ PUBLISHER ═════════════════════════════════════════ -->
-  <div class="panel panel-publisher">
-    <div class="panel-header">
-      <div>
-        <div class="panel-label">Publisher</div>
-        <div class="panel-title">Send Messages</div>
-      </div>
+  <div class="panel panel-publisher collapsed" id="pubPanel">
+    <div class="panel-collapse-tab" onclick="togglePanel('pubPanel')" title="Expand Publisher">
+      <span class="panel-tab-label">Publisher</span>
     </div>
+    <div class="panel-content">
+      <div class="panel-header">
+        <div>
+          <div class="panel-label">Publisher</div>
+          <div class="panel-title">Send Messages</div>
+        </div>
+        <button class="panel-toggle-btn" onclick="togglePanel('pubPanel')" title="Collapse">⟨</button>
+      </div>
 
     <div class="pub-scroll">
       <!-- Connection info (read-only) -->
@@ -437,7 +650,7 @@
       <!-- Payload -->
       <div class="field">
         <label>Payload (JSON)</label>
-        <textarea id="pubPayload" rows="7" placeholder='{"vehicle_id":"vehicle_001","speed_mph":62.4}'></textarea>
+        <textarea id="pubPayload" rows="6" placeholder='{"vehicle_id":"vehicle_001","speed":62.4}'></textarea>
         <div class="chip-row">
           <div class="chip" onclick="formatPayload()">Format</div>
           <div class="chip" onclick="fillTemplate('speed')">Template: Speed</div>
@@ -461,16 +674,22 @@
       <button class="btn btn-primary" id="pubBtn" onclick="doPublish()">▶ Publish</button>
       <button class="btn btn-ghost" onclick="clearPubLog()">Clear</button>
     </div>
+    </div><!-- /panel-content -->
   </div>
 
   <!-- ═══════════════════ SUBSCRIBER ════════════════════════════════════════ -->
-  <div class="panel panel-subscriber">
-    <div class="panel-header">
-      <div>
-        <div class="panel-label">Subscriber</div>
-        <div class="panel-title">Receive Messages</div>
-      </div>
+  <div class="panel panel-subscriber collapsed" id="subPanel">
+    <div class="panel-collapse-tab" onclick="togglePanel('subPanel')" title="Expand Subscriber">
+      <span class="panel-tab-label">Subscriber</span>
     </div>
+    <div class="panel-content">
+      <div class="panel-header">
+        <div>
+          <div class="panel-label">Subscriber</div>
+          <div class="panel-title">Receive Messages</div>
+        </div>
+        <button class="panel-toggle-btn" onclick="togglePanel('subPanel')" title="Collapse">⟨</button>
+      </div>
 
     <!-- Topic pattern -->
     <div class="field">
@@ -536,11 +755,96 @@
       <span class="status-icon">○</span>
       <span id="statusText">Not connected</span>
     </div>
+    </div><!-- /panel-content -->
   </div>
-</div>
+
+  <!-- ═══════════════════ QUERY ══════════════════════════════════════════════ -->
+  <div class="panel panel-query">
+    <div class="panel-header">
+      <div>
+        <div class="panel-label">Ad-hoc Query</div>
+        <div class="panel-title">Query History</div>
+      </div>
+    </div>
+
+    <!-- Controls scroll area: presets + filters + custom SQL + limit -->
+    <div class="query-controls">
+
+      <!-- Preset chips by category -->
+      <div id="presetGroups"></div>
+
+      <!-- Description + filter rows (shown after selecting a preset) -->
+      <div class="query-filters" id="queryFilters" style="display:none;">
+        <div class="preset-desc" id="presetDesc"></div>
+
+        <!-- Time window filter -->
+        <div id="filterSince" style="display:none;">
+          <div class="filter-section-label">Time window</div>
+          <div class="filter-dur-row" id="queryDurChips"></div>
+        </div>
+
+        <!-- Severity + vehicle filters -->
+        <div class="filter-sev-veh" id="filterSevVeh" style="display:none;">
+          <div class="filter-block" id="filterSevGroup" style="display:none;">
+            <div class="filter-section-label">Severity</div>
+            <div style="display:flex; gap:5px; flex-wrap:wrap;">
+              <div class="q-sev-chip chip active" data-sev="" onclick="selectSev(this)">All</div>
+              <div class="q-sev-chip chip" data-sev="high" onclick="selectSev(this)">high</div>
+              <div class="q-sev-chip chip" data-sev="medium" onclick="selectSev(this)">medium</div>
+              <div class="q-sev-chip chip" data-sev="low" onclick="selectSev(this)">low</div>
+            </div>
+          </div>
+          <div class="filter-block" id="filterVehGroup" style="display:none;">
+            <div class="filter-section-label">Vehicle ID</div>
+            <input type="text" id="filterVehicle" placeholder="vehicle_005" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom SQL collapsible -->
+      <div class="custom-sql-toggle" onclick="toggleCustomSql()">
+        <span class="custom-sql-caret" id="customSqlCaret">›</span>
+        <span>Custom SQL</span>
+      </div>
+      <div class="custom-sql-section" id="customSqlSection">
+        <textarea id="customSqlInput" rows="4"
+          placeholder="SELECT vehicle_id, occurred_at FROM high_severity_alerts ORDER BY occurred_at DESC LIMIT 20"></textarea>
+        <div class="sql-hint">SELECT only — DROP / CREATE / ALTER not permitted</div>
+      </div>
+
+      <!-- Limit chips -->
+      <div class="limit-row">
+        <label>Row limit</label>
+        <div class="limit-chips" id="limitChips"></div>
+      </div>
+
+    </div><!-- /query-controls -->
+
+    <!-- Action buttons -->
+    <div class="btn-row">
+      <button class="btn btn-primary" id="runQueryBtn" onclick="doQuery()">▶ Run Query</button>
+      <button class="btn btn-ghost" onclick="clearQueryResults()">Clear</button>
+    </div>
+
+    <!-- Metadata bar -->
+    <div class="qmeta" id="qMeta"></div>
+
+    <!-- Results -->
+    <div class="qresults-wrap" id="qResultsWrap">
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">Select a preset or write custom SQL,<br/>then click Run Query.</div>
+      </div>
+    </div>
+
+  </div><!-- /panel-query -->
+
+</div><!-- /workspace -->
 
 <script>
-// ── State ─────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// Subscribe panel state
+// ══════════════════════════════════════════════════════════════════════════════
 let currentReader  = null;
 let histEnabled    = true;
 let selectedDur    = '1h';
@@ -552,7 +856,7 @@ let inHistoryPhase = false;
 const TEMPLATES = {
   speed: {
     topic: 'fleet/telemetry/vehicle_001/metrics/speed',
-    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/telemetry/vehicle_001/metrics/speed', speed_mph: 62.4, recorded_at: null }
+    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/telemetry/vehicle_001/metrics/speed', speed: 62.4, recorded_at: null }
   },
   alert: {
     topic: 'fleet/events/vehicle_001/alerts/high',
@@ -560,11 +864,24 @@ const TEMPLATES = {
   },
   location: {
     topic: 'fleet/telemetry/vehicle_001/metrics/location',
-    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/telemetry/vehicle_001/metrics/location', latitude: 42.3601, longitude: -71.0589, speed_mph: 28.4, recorded_at: null }
+    payload: { vehicle_id: 'vehicle_001', solace_topic: 'fleet/telemetry/vehicle_001/metrics/location', latitude: 42.3601, longitude: -71.0589, speed: 28.4, recorded_at: null }
   }
 };
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// Query panel state
+// ══════════════════════════════════════════════════════════════════════════════
+let qPresets        = [];
+let qSelectedPreset = null;
+let qSelectedDur    = null;    // null = no time filter
+let qSelectedSev    = '';
+let qSelectedLimit  = 100;
+
+const LIMIT_OPTIONS = [20, 50, 100, 500];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Boot
+// ══════════════════════════════════════════════════════════════════════════════
 async function init() {
   try {
     const cfg = await fetch('/config').then(r => r.json());
@@ -582,46 +899,64 @@ async function init() {
       sb.textContent = '✗ SDK missing';
       sb.className = 'conn-badge err';
     }
-
-    // Check RisingWave reachability via config endpoint (it always returns something)
     const rb = document.getElementById('rwBadge');
     rb.textContent = `✓ RisingWave :${cfg.risingwave.port}`;
     rb.className = 'conn-badge ok';
 
-    // Build topic chips
+    // Topic chips for publisher + subscriber
     const topics = cfg.topics || [];
-    buildChips('pubTopicChips', topics.map(t => t.pattern), (p) => {
+    buildTopicChips('pubTopicChips', topics.map(t => t.pattern), (p) => {
       document.getElementById('pubTopic').value = p;
       fillTemplateFromTopic(p);
     });
-    buildChips('subTopicChips', topics.map(t => t.pattern), (p) => {
+    buildTopicChips('subTopicChips', topics.map(t => t.pattern), (p) => {
       document.getElementById('subTopic').value = p;
-      // Auto-enable history if this topic has it
       const entry = topics.find(t => t.pattern === p);
       if (entry && entry.has_history && !histEnabled) toggleHistory();
     });
 
-    // Duration presets
+    // Duration chips for subscribe panel
     const durs = cfg.duration_presets || ['15m','30m','1h','4h','24h'];
     buildDurationChips(durs);
+
+    // Query panel
+    initQueryPanel(cfg.query_presets || [], durs);
 
   } catch (e) {
     setStatus('error', `Config error: ${e.message}`);
   }
 }
 
-function buildChips(containerId, items, onClick) {
+// ── Chip builders ─────────────────────────────────────────────────────────────
+function buildTopicChips(containerId, items, onClick) {
   const el = document.getElementById(containerId);
   el.innerHTML = '';
   const seen = new Set();
-  items.forEach(p => {
-    if (seen.has(p)) return; seen.add(p);
+  const unique = [];
+  items.forEach(p => { if (!seen.has(p)) { seen.add(p); unique.push(p); } });
+
+  const SHOW = 3;
+  unique.forEach((p, i) => {
     const d = document.createElement('div');
     d.className = 'chip';
+    if (i >= SHOW) { d.classList.add('chip-extra'); d.style.display = 'none'; }
     d.textContent = p;
     d.onclick = () => onClick(p);
     el.appendChild(d);
   });
+
+  if (unique.length > SHOW) {
+    const more = document.createElement('div');
+    more.className = 'chip';
+    more.style.borderStyle = 'dashed';
+    more.textContent = `+${unique.length - SHOW} more`;
+    more.onclick = () => {
+      const expanding = more.textContent.startsWith('+');
+      el.querySelectorAll('.chip-extra').forEach(c => { c.style.display = expanding ? '' : 'none'; });
+      more.textContent = expanding ? 'less' : `+${unique.length - SHOW} more`;
+    };
+    el.appendChild(more);
+  }
 }
 
 function buildDurationChips(durs) {
@@ -654,7 +989,6 @@ function selectDuration(dur) {
 async function doPublish() {
   const topic   = document.getElementById('pubTopic').value.trim();
   const rawJson = document.getElementById('pubPayload').value.trim();
-
   if (!topic) { alert('Enter a topic first.'); return; }
 
   let payload;
@@ -665,13 +999,11 @@ async function doPublish() {
     return;
   }
 
-  // Fill in timestamp if null
   if (payload.recorded_at === null) payload.recorded_at = new Date().toISOString();
   if (payload.occurred_at === null) payload.occurred_at = new Date().toISOString();
 
   const btn = document.getElementById('pubBtn');
   btn.disabled = true;
-
   try {
     const res = await fetch('/publish', {
       method: 'POST',
@@ -693,9 +1025,7 @@ async function doPublish() {
 
 function appendPubLog(topic, ok, errMsg) {
   const log = document.getElementById('pubLog');
-  // Remove empty state
   log.querySelector('.empty-state')?.remove();
-
   const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
   const el = document.createElement('div');
   el.className = 'pub-entry ' + (ok ? 'ok' : 'err');
@@ -705,15 +1035,15 @@ function appendPubLog(topic, ok, errMsg) {
 }
 
 function clearPubLog() {
-  document.getElementById('pubLog').innerHTML = '<div class="empty-state"><div class="empty-icon">📤</div><div class="empty-text">Published messages appear here</div></div>';
+  document.getElementById('pubLog').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">📤</div><div class="empty-text">Published messages appear here</div></div>';
 }
 
 // ── Payload helpers ────────────────────────────────────────────────────────────
 function formatPayload() {
   const ta = document.getElementById('pubPayload');
-  try {
-    ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
-  } catch (e) { alert('Invalid JSON: ' + e.message); }
+  try { ta.value = JSON.stringify(JSON.parse(ta.value), null, 2); }
+  catch (e) { alert('Invalid JSON: ' + e.message); }
 }
 
 function fillTemplate(name) {
@@ -724,9 +1054,9 @@ function fillTemplate(name) {
 }
 
 function fillTemplateFromTopic(pattern) {
-  if (pattern.includes('metrics/speed'))    fillTemplate('speed');
-  else if (pattern.includes('alerts'))      fillTemplate('alert');
-  else if (pattern.includes('location'))    fillTemplate('location');
+  if (pattern.includes('metrics/speed'))   fillTemplate('speed');
+  else if (pattern.includes('alerts'))     fillTemplate('alert');
+  else if (pattern.includes('location'))   fillTemplate('location');
 }
 
 // ── Subscribe / stream ─────────────────────────────────────────────────────────
@@ -734,7 +1064,7 @@ function doSubscribe() {
   const topic = document.getElementById('subTopic').value.trim();
   if (!topic) { alert('Enter a topic pattern first.'); return; }
 
-  doStop();  // stop any existing stream
+  doStop();
 
   const since = histEnabled ? selectedDur : null;
   const url = `/subscribe?topic=${encodeURIComponent(topic)}` + (since ? `&since=${since}` : '');
@@ -748,20 +1078,16 @@ function doSubscribe() {
   document.getElementById('subBtn').disabled = true;
   document.getElementById('stopBtn').disabled = false;
 
-  // Clear previous messages
   const streamBody = document.getElementById('streamBody');
-  streamBody.innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-icon">📡</div><div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div></div>';
+  streamBody.innerHTML =
+    '<div class="empty-state" id="emptyState"><div class="empty-icon">📡</div><div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div></div>';
 
   const es = new EventSource(url);
   currentReader = es;
 
   es.onmessage = (e) => {
-    try {
-      const evt = JSON.parse(e.data);
-      handleEvent(evt);
-    } catch {}
+    try { handleEvent(JSON.parse(e.data)); } catch {}
   };
-
   es.onerror = () => {
     if (es.readyState === EventSource.CLOSED) {
       document.getElementById('subBtn').disabled = false;
@@ -772,10 +1098,7 @@ function doSubscribe() {
 }
 
 function doStop() {
-  if (currentReader) {
-    currentReader.close();
-    currentReader = null;
-  }
+  if (currentReader) { currentReader.close(); currentReader = null; }
   inHistoryPhase = false;
   document.getElementById('subBtn').disabled = false;
   document.getElementById('stopBtn').disabled = true;
@@ -785,8 +1108,7 @@ function doStop() {
 function handleEvent(evt) {
   switch (evt.type) {
     case 'status':
-      setStatus('info', evt.message);
-      break;
+      setStatus('info', evt.message); break;
     case 'history_start':
       if (evt.count === 0) {
         addInfoCard(`No historical data found in ${evt.mv} for the last ${evt.since}.`);
@@ -800,38 +1122,30 @@ function handleEvent(evt) {
       if (evt.count > 0) {
         addLiveDivider(evt.count);
         document.getElementById('streamBody').scrollTop = 0;
-        autoScroll = false;   // stay on history — user can scroll down to live
+        autoScroll = false;
         document.getElementById('scrollBtn').classList.add('visible');
       }
       setStatus('live', `History loaded (${evt.count}). Streaming live… (↓ to follow)`);
       break;
     case 'history':
-      histCnt++;
-      updateCounts();
-      addMessage('hist', evt.topic, evt.payload, evt.ts);
-      break;
+      histCnt++; updateCounts();
+      addMessage('hist', evt.topic, evt.payload, evt.ts); break;
     case 'live':
-      liveCnt++;
-      updateCounts();
-      addMessage('live', evt.topic, evt.payload, evt.ts);
-      break;
+      liveCnt++; updateCounts();
+      addMessage('live', evt.topic, evt.payload, evt.ts); break;
     case 'error':
       setStatus('error', evt.message);
-      addInfoCard(`⚠ ${evt.message}`, true);
-      break;
-    case 'ping':
-      break;
+      addInfoCard(`⚠ ${evt.message}`, true); break;
+    case 'ping': break;
   }
 }
 
-// ── Message card ──────────────────────────────────────────────────────────────
 function addMessage(kind, topic, payload, ts) {
   const body = document.getElementById('streamBody');
   body.querySelector('.empty-state')?.remove();
 
   const card = document.createElement('div');
   card.className = 'msg-card' + (kind === 'live' ? ' new-live' : '');
-
   const tsDisplay = ts ? new Date(ts).toLocaleTimeString('en-US', { hour12: false }) : '';
   const summaryLine = buildSummary(payload);
 
@@ -848,19 +1162,16 @@ function addMessage(kind, topic, payload, ts) {
     </div>`;
 
   body.appendChild(card);
-  if (autoScroll && !inHistoryPhase) {
-    body.scrollTop = body.scrollHeight;
-  } else if (!autoScroll && !inHistoryPhase) {
-    document.getElementById('scrollBtn').classList.add('visible');
-  }
+  if (autoScroll && !inHistoryPhase) body.scrollTop = body.scrollHeight;
+  else if (!autoScroll && !inHistoryPhase) document.getElementById('scrollBtn').classList.add('visible');
 
-  // Prune to 500 messages
   const cards = body.querySelectorAll('.msg-card');
   if (cards.length > 500) cards[0].remove();
 }
 
 function buildSummary(payload) {
   if (payload.speed_mph !== undefined) return `${Number(payload.speed_mph).toFixed(1)} mph`;
+  if (payload.speed !== undefined) return `${Number(payload.speed).toFixed(1)} mph`;
   if (payload.event_type) return payload.event_type;
   if (payload.fuel_level_pct !== undefined) return `${Number(payload.fuel_level_pct).toFixed(0)}%`;
   if (payload.engine_temp_f !== undefined) return `${Number(payload.engine_temp_f).toFixed(0)}°F`;
@@ -936,12 +1247,309 @@ function updateCounts() {
 }
 
 function setStatus(type, msg) {
-  const icons = { info: '●', live: '◉', hist: '▷', error: '✗', idle: '○' };
+  const icons  = { info:'●', live:'◉', hist:'▷', error:'✗', idle:'○' };
   const colors = { info:'var(--text-muted)', live:'var(--classic-green)', hist:'var(--orange)', error:'var(--orange)', idle:'var(--text-muted)' };
   const bar = document.getElementById('statusBar');
   bar.querySelector('.status-icon').textContent = icons[type] || '○';
   bar.querySelector('.status-icon').style.color = colors[type] || 'var(--text-muted)';
   document.getElementById('statusText').textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// QUERY PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+function initQueryPanel(presets, durPresets) {
+  qPresets = presets;
+  buildPresetGroups(presets);
+  buildQueryDurChips(durPresets);
+  buildLimitChips();
+}
+
+// ── Build preset chip groups ──────────────────────────────────────────────────
+function buildPresetGroups(presets) {
+  const container = document.getElementById('presetGroups');
+  container.innerHTML = '';
+
+  const categories = {};
+  presets.forEach(p => {
+    if (!categories[p.category]) categories[p.category] = [];
+    categories[p.category].push(p);
+  });
+
+  Object.entries(categories).forEach(([cat, items]) => {
+    const grp = document.createElement('div');
+    grp.className = 'preset-group';
+    const lbl = document.createElement('div');
+    lbl.className = 'preset-group-label';
+    lbl.textContent = cat;
+    grp.appendChild(lbl);
+
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+    items.forEach(p => {
+      const c = document.createElement('div');
+      c.className = 'preset-chip';
+      c.textContent = p.label;
+      c.dataset.id = p.id;
+      c.onclick = () => selectPreset(p.id);
+      row.appendChild(c);
+    });
+    grp.appendChild(row);
+    container.appendChild(grp);
+  });
+  // Bottom padding after last group
+  const pad = document.createElement('div');
+  pad.style.height = '10px';
+  container.appendChild(pad);
+}
+
+// ── Select a preset ───────────────────────────────────────────────────────────
+function selectPreset(id) {
+  qSelectedPreset = id;
+
+  // Clear custom SQL + close it
+  document.getElementById('customSqlInput').value = '';
+  closeCustomSql();
+
+  // Update chip active state
+  document.querySelectorAll('.preset-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.id === id);
+  });
+
+  const preset = qPresets.find(p => p.id === id);
+  if (!preset) return;
+
+  // Show description
+  const filters = document.getElementById('queryFilters');
+  filters.style.display = 'block';
+  document.getElementById('presetDesc').textContent = preset.description;
+
+  // Time window
+  document.getElementById('filterSince').style.display = preset.supports_since ? 'block' : 'none';
+
+  // Sev / vehicle
+  const hasSevVeh = preset.supports_severity || preset.supports_vehicle;
+  document.getElementById('filterSevVeh').style.display = hasSevVeh ? 'flex' : 'none';
+  document.getElementById('filterSevGroup').style.display = preset.supports_severity ? 'block' : 'none';
+  document.getElementById('filterVehGroup').style.display = preset.supports_vehicle ? 'block' : 'none';
+}
+
+// ── Duration chips for query panel ────────────────────────────────────────────
+function buildQueryDurChips(durs) {
+  const el = document.getElementById('queryDurChips');
+  el.innerHTML = '';
+
+  // "None" = no time filter
+  const none = document.createElement('div');
+  none.className = 'dur-chip' + (qSelectedDur === null ? ' active' : '');
+  none.textContent = 'none';
+  none.onclick = () => selectQueryDur(null);
+  el.appendChild(none);
+
+  durs.forEach(d => {
+    const c = document.createElement('div');
+    c.className = 'dur-chip' + (d === qSelectedDur ? ' active' : '');
+    c.textContent = d;
+    c.onclick = () => selectQueryDur(d);
+    el.appendChild(c);
+  });
+}
+
+function selectQueryDur(dur) {
+  qSelectedDur = dur;
+  document.querySelectorAll('#queryDurChips .dur-chip').forEach(c => {
+    c.classList.toggle('active', c.textContent === (dur === null ? 'none' : dur));
+  });
+}
+
+// ── Limit chips ───────────────────────────────────────────────────────────────
+function buildLimitChips() {
+  const el = document.getElementById('limitChips');
+  el.innerHTML = '';
+  LIMIT_OPTIONS.forEach(n => {
+    const c = document.createElement('div');
+    c.className = 'dur-chip' + (n === qSelectedLimit ? ' active' : '');
+    c.textContent = String(n);
+    c.onclick = () => selectLimit(n);
+    el.appendChild(c);
+  });
+}
+
+function selectLimit(n) {
+  qSelectedLimit = n;
+  document.querySelectorAll('#limitChips .dur-chip').forEach(c => {
+    c.classList.toggle('active', c.textContent === String(n));
+  });
+}
+
+// ── Severity chip ─────────────────────────────────────────────────────────────
+function selectSev(el) {
+  qSelectedSev = el.dataset.sev;
+  document.querySelectorAll('.q-sev-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.sev === qSelectedSev);
+  });
+}
+
+// ── Custom SQL toggle ─────────────────────────────────────────────────────────
+function toggleCustomSql() {
+  const sec    = document.getElementById('customSqlSection');
+  const caret  = document.getElementById('customSqlCaret');
+  const isOpen = sec.classList.toggle('open');
+  caret.classList.toggle('open', isOpen);
+  if (isOpen) {
+    // Deselect preset when opening custom SQL
+    qSelectedPreset = null;
+    document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('queryFilters').style.display = 'none';
+  }
+}
+
+function closeCustomSql() {
+  document.getElementById('customSqlSection').classList.remove('open');
+  document.getElementById('customSqlCaret').classList.remove('open');
+}
+
+// ── Run query ─────────────────────────────────────────────────────────────────
+async function doQuery() {
+  const btn       = document.getElementById('runQueryBtn');
+  const customSql = document.getElementById('customSqlInput').value.trim();
+  const vehicleId = document.getElementById('filterVehicle').value.trim() || null;
+
+  const body = { limit: qSelectedLimit };
+
+  if (customSql) {
+    body.sql = customSql;
+  } else if (qSelectedPreset) {
+    body.preset = qSelectedPreset;
+    if (qSelectedDur) body.since = qSelectedDur;
+    if (vehicleId)   body.vehicle_id = vehicleId;
+    if (qSelectedSev) body.severity  = qSelectedSev;
+  } else {
+    alert('Select a preset or enter custom SQL first.');
+    return;
+  }
+
+  btn.disabled = true;
+  showQueryMeta('running', null, null, null);
+
+  try {
+    const res = await fetch('/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderQueryResults(data);
+    } else {
+      const err = await res.json();
+      showQueryError(err.detail || 'Query failed');
+    }
+  } catch (e) {
+    showQueryError(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function clearQueryResults() {
+  document.getElementById('qResultsWrap').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Select a preset or write custom SQL,<br/>then click Run Query.</div></div>';
+  const m = document.getElementById('qMeta');
+  m.style.display = 'none';
+  m.innerHTML = '';
+}
+
+function showQueryMeta(state, count, elapsed, sql) {
+  const m = document.getElementById('qMeta');
+  m.style.display = 'flex';
+  if (state === 'running') {
+    m.innerHTML = `<span class="qmeta-ok">⏳ Running…</span>`;
+  } else if (state === 'ok') {
+    m.innerHTML = `<span class="qmeta-ok">✓ ${count} rows</span><span class="qmeta-time">${elapsed}ms</span><span class="qmeta-sql">${escHtml(sql)}</span>`;
+  } else {
+    m.innerHTML = `<span class="qmeta-err">✗ ${escHtml(String(state))}</span>`;
+  }
+}
+
+function showQueryError(msg) {
+  showQueryMeta(msg, null, null, null);
+  document.getElementById('qResultsWrap').innerHTML =
+    `<div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text">${escHtml(msg)}</div></div>`;
+}
+
+// ── Render results table ──────────────────────────────────────────────────────
+function renderQueryResults(data) {
+  showQueryMeta('ok', data.count, data.elapsed_ms, data.sql);
+
+  const wrap = document.getElementById('qResultsWrap');
+  if (data.count === 0) {
+    wrap.innerHTML =
+      '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Query returned 0 rows.</div></div>';
+    return;
+  }
+
+  const rows = data.rows;
+  const cols = Object.keys(rows[0]);
+
+  let html = '<div class="rtable-wrap"><table class="rtable"><thead><tr>';
+  cols.forEach(c => { html += `<th>${escHtml(c)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(row => {
+    html += '<tr>';
+    cols.forEach(col => {
+      const val = row[col];
+      const cls = cellClass(col, val);
+      html += `<td class="${cls}" title="${escHtml(String(val ?? ''))}">${escHtml(formatCellValue(col, val))}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+function cellClass(col, val) {
+  if (val === null || val === undefined) return 'td-null';
+  if (col === 'severity') {
+    if (val === 'high')   return 'td-sev-high';
+    if (val === 'medium') return 'td-sev-medium';
+    if (val === 'low')    return 'td-sev-low';
+  }
+  if (typeof val === 'number') return 'td-num';
+  const tsPattern = /_at$|^window_start$|^window_end$|_time$/;
+  if (tsPattern.test(col)) return 'td-ts';
+  if (typeof val === 'object') return 'td-json';
+  return 'td-str';
+}
+
+function formatCellValue(col, val) {
+  if (val === null || val === undefined) return 'null';
+  const tsPattern = /_at$|^window_start$|^window_end$|_time$/;
+  if (tsPattern.test(col) && typeof val === 'string') {
+    try {
+      const d = new Date(val);
+      return d.toLocaleTimeString('en-US', { hour12: false }) +
+             ' ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch { return String(val); }
+  }
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ── Panel collapse / expand ───────────────────────────────────────────────────
+function togglePanel(id) {
+  document.getElementById(id).classList.toggle('collapsed');
 }
 
 // Boot

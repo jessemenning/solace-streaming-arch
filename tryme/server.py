@@ -17,6 +17,7 @@ import os
 import queue
 import re
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date
@@ -147,6 +148,383 @@ _DURATION_MAP = {
 
 def to_pg_interval(since: str) -> Optional[str]:
     return _DURATION_MAP.get(since.strip().lower())
+
+
+# ── Ad-hoc query presets ──────────────────────────────────────────────────────
+QUERY_PRESETS = [
+    # ── Alerts ────────────────────────────────────────────────────────────────
+    {
+        "id": "fleet_alert_summary",
+        "label": "Fleet Alert Summary",
+        "category": "Alerts",
+        "description": "Rolling 1-hour alert count and unique vehicles affected, grouped by severity.",
+        "supports_since": False,
+        "supports_vehicle": False,
+        "supports_severity": False,
+    },
+    {
+        "id": "high_alerts",
+        "label": "High Severity Alerts",
+        "category": "Alerts",
+        "description": "Recent high-severity events: engine temperature, speed violations, tire pressure, battery.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "medium_alerts",
+        "label": "Medium Severity Alerts",
+        "category": "Alerts",
+        "description": "Events requiring operator attention — medium severity tier.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "low_alerts",
+        "label": "Low Severity Alerts",
+        "category": "Alerts",
+        "description": "Informational threshold crossings — low severity tier.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "all_alerts",
+        "label": "All Alerts",
+        "category": "Alerts",
+        "description": "All alert events across severity levels. Filter by severity, vehicle, or time window.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": True,
+    },
+    {
+        "id": "alerts_context",
+        "label": "Alerts With Context",
+        "category": "Alerts",
+        "description": "Alerts joined with the telemetry from the 2 minutes before each alert fired.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": True,
+    },
+    {
+        "id": "vehicle_activity",
+        "label": "Vehicle Activity (1h)",
+        "category": "Alerts",
+        "description": "Per-vehicle alert counts by severity for the rolling last hour.",
+        "supports_since": False,
+        "supports_vehicle": True,
+        "supports_severity": True,
+    },
+    # ── Telemetry ─────────────────────────────────────────────────────────────
+    {
+        "id": "speed_averages",
+        "label": "Speed Averages (5-min)",
+        "category": "Telemetry",
+        "description": "5-minute tumbling-window average, max, and min speed per vehicle.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "fuel_levels",
+        "label": "Fuel Levels",
+        "category": "Telemetry",
+        "description": "Raw fuel percentage readings from fleet telemetry.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "high_engine_temp",
+        "label": "High Engine Temp",
+        "category": "Telemetry",
+        "description": "Vehicles with engine temperature above 220°F (pre-filtered by streaming SQL).",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "last_positions",
+        "label": "Last Known Positions",
+        "category": "Telemetry",
+        "description": "Latest GPS position and speed for all vehicles.",
+        "supports_since": True,
+        "supports_vehicle": True,
+        "supports_severity": False,
+    },
+    {
+        "id": "boston_region",
+        "label": "Boston Region",
+        "category": "Telemetry",
+        "description": "Vehicles currently inside the Boston metro bounding box (42.2–42.5°N, 71.2–70.9°W).",
+        "supports_since": True,
+        "supports_vehicle": False,
+        "supports_severity": False,
+    },
+]
+
+# ── SQL safety ────────────────────────────────────────────────────────────────
+_SQL_DENY = re.compile(
+    r"\b(drop|create|alter|insert|update|delete|truncate|grant|revoke|execute|exec|copy|vacuum|analyze)\b",
+    re.IGNORECASE,
+)
+
+
+def is_safe_sql(sql: str) -> bool:
+    stripped = sql.strip()
+    if not stripped.upper().startswith("SELECT"):
+        return False
+    if _SQL_DENY.search(stripped):
+        return False
+    return True
+
+
+def _build_preset_sql(
+    preset_id: str,
+    since_interval: Optional[str],
+    vehicle_id: Optional[str],
+    severity: Optional[str],
+    limit: int,
+) -> tuple[Optional[str], list]:
+    """Return (sql_template, params_list) for a given preset, or (None, []) on unknown id."""
+
+    def build_where(conditions: list) -> str:
+        return ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    params: list = []
+
+    # ── fleet_alert_summary ───────────────────────────────────────────────────
+    if preset_id == "fleet_alert_summary":
+        sql = (
+            "SELECT severity, alert_count, affected_vehicles "
+            "FROM fleet_alert_summary "
+            "ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END"
+        )
+        return sql, params
+
+    # ── high_alerts ───────────────────────────────────────────────────────────
+    if preset_id == "high_alerts":
+        conds = []
+        if since_interval:
+            conds.append("occurred_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, event_type, description, occurred_at, solace_topic "
+            f"FROM high_severity_alerts {build_where(conds)} "
+            "ORDER BY occurred_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── medium_alerts ─────────────────────────────────────────────────────────
+    if preset_id == "medium_alerts":
+        conds = []
+        if since_interval:
+            conds.append("occurred_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, event_type, description, occurred_at "
+            f"FROM medium_severity_alerts {build_where(conds)} "
+            "ORDER BY occurred_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── low_alerts ────────────────────────────────────────────────────────────
+    if preset_id == "low_alerts":
+        conds = []
+        if since_interval:
+            conds.append("occurred_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, event_type, description, occurred_at "
+            f"FROM low_severity_alerts {build_where(conds)} "
+            "ORDER BY occurred_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── all_alerts ────────────────────────────────────────────────────────────
+    if preset_id == "all_alerts":
+        conds = []
+        if since_interval:
+            conds.append("occurred_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        if severity:
+            conds.append("severity = %s")
+            params.append(severity)
+        sql = (
+            "SELECT vehicle_id, severity, event_type, description, occurred_at, solace_topic "
+            f"FROM fleet_events_raw {build_where(conds)} "
+            "ORDER BY occurred_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── alerts_context ────────────────────────────────────────────────────────
+    if preset_id == "alerts_context":
+        conds = []
+        if since_interval:
+            conds.append("alert_time > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        if severity:
+            conds.append("severity = %s")
+            params.append(severity)
+        sql = (
+            "SELECT vehicle_id, event_type, severity, description, alert_time, "
+            "ROUND(speed::numeric,1) AS speed_mph, ROUND(fuel_level::numeric,1) AS fuel_pct, "
+            "ROUND(engine_temp::numeric,1) AS engine_temp_f, ROUND(tire_pressure::numeric,1) AS psi, "
+            "ROUND(battery_voltage::numeric,2) AS volts, time_before_alert "
+            f"FROM alerts_with_context {build_where(conds)} "
+            "ORDER BY alert_time DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── vehicle_activity ──────────────────────────────────────────────────────
+    if preset_id == "vehicle_activity":
+        conds = []
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        if severity:
+            conds.append("severity = %s")
+            params.append(severity)
+        sql = (
+            "SELECT vehicle_id, severity, event_count "
+            f"FROM vehicle_event_counts_1h {build_where(conds)} "
+            "ORDER BY event_count DESC, vehicle_id LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── speed_averages ────────────────────────────────────────────────────────
+    if preset_id == "speed_averages":
+        conds = []
+        if since_interval:
+            conds.append("window_end > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, window_start, window_end, "
+            "ROUND(avg_speed_mph::numeric,1) AS avg_mph, "
+            "ROUND(max_speed_mph::numeric,1) AS max_mph, "
+            "ROUND(min_speed_mph::numeric,1) AS min_mph, sample_count "
+            f"FROM vehicle_speed_5min_avg {build_where(conds)} "
+            "ORDER BY window_end DESC, vehicle_id LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── fuel_levels ───────────────────────────────────────────────────────────
+    if preset_id == "fuel_levels":
+        conds = []
+        if since_interval:
+            conds.append("recorded_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, ROUND(fuel_pct::numeric,1) AS fuel_pct, recorded_at "
+            f"FROM vehicle_fuel_levels {build_where(conds)} "
+            "ORDER BY recorded_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── high_engine_temp ──────────────────────────────────────────────────────
+    if preset_id == "high_engine_temp":
+        conds = []
+        if since_interval:
+            conds.append("recorded_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, ROUND(engine_temp_f::numeric,1) AS engine_temp_f, recorded_at "
+            f"FROM high_engine_temp_vehicles {build_where(conds)} "
+            "ORDER BY recorded_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── last_positions ────────────────────────────────────────────────────────
+    if preset_id == "last_positions":
+        conds = []
+        if since_interval:
+            conds.append("recorded_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        if vehicle_id:
+            conds.append("vehicle_id = %s")
+            params.append(vehicle_id)
+        sql = (
+            "SELECT vehicle_id, ROUND(latitude::numeric,4) AS lat, "
+            "ROUND(longitude::numeric,4) AS lon, "
+            "ROUND(speed_mph::numeric,1) AS speed_mph, recorded_at "
+            f"FROM vehicle_last_known_position {build_where(conds)} "
+            "ORDER BY recorded_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    # ── boston_region ─────────────────────────────────────────────────────────
+    if preset_id == "boston_region":
+        conds = []
+        if since_interval:
+            conds.append("recorded_at > NOW() - INTERVAL %s")
+            params.append(since_interval)
+        sql = (
+            "SELECT vehicle_id, ROUND(latitude::numeric,4) AS lat, "
+            "ROUND(longitude::numeric,4) AS lon, "
+            "ROUND(speed_mph::numeric,1) AS speed_mph, recorded_at "
+            f"FROM vehicles_in_region_boston {build_where(conds)} "
+            "ORDER BY recorded_at DESC LIMIT %s"
+        )
+        params.append(limit)
+        return sql, params
+
+    return None, []
+
+
+def _run_query_sync(sql: str, params: list, limit: int) -> dict:
+    """Execute a SELECT query against RisingWave and return rows + metadata."""
+    t0 = time.time()
+    try:
+        conn = psycopg2.connect(
+            host=RW_HOST, port=RW_PORT,
+            user="root", database="dev",
+            connect_timeout=5,
+        )
+        with conn.cursor() as cur:
+            cur.execute(sql, params if params else None)
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchmany(limit)]
+        conn.close()
+        elapsed = int((time.time() - t0) * 1000)
+        return {"rows": rows, "count": len(rows), "elapsed_ms": elapsed, "sql": sql, "error": None}
+    except Exception as e:
+        elapsed = int((time.time() - t0) * 1000)
+        return {"rows": [], "count": 0, "elapsed_ms": elapsed, "sql": sql, "error": str(e)}
 
 
 # ── Solace SMF receiver (polling thread) ─────────────────────────────────────
@@ -295,12 +673,22 @@ async def get_config():
         },
         "topics": topics,
         "duration_presets": list(_DURATION_MAP.keys()),
+        "query_presets": QUERY_PRESETS,
     }
 
 
 class PublishRequest(BaseModel):
     topic: str
     payload: dict
+
+
+class QueryRequest(BaseModel):
+    preset: Optional[str] = None
+    sql: Optional[str] = None
+    since: Optional[str] = None
+    vehicle_id: Optional[str] = None
+    severity: Optional[str] = None
+    limit: int = 100
 
 
 @app.post("/publish")
@@ -310,6 +698,50 @@ async def publish(req: PublishRequest):
     if not result["ok"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Publish failed"))
     return {"ok": True, "topic": req.topic}
+
+
+@app.post("/query")
+async def run_query(req: QueryRequest):
+    """Execute an ad-hoc or preset query against RisingWave."""
+    limit = max(1, min(req.limit, 1000))
+
+    if req.sql:
+        # Ad-hoc SQL — safety check
+        if not is_safe_sql(req.sql):
+            raise HTTPException(
+                status_code=400,
+                detail="Only SELECT statements are allowed. DROP/CREATE/ALTER/INSERT/UPDATE/DELETE are not permitted.",
+            )
+        sql = req.sql.strip().rstrip(";")
+        params: list = []
+    elif req.preset:
+        since_interval = to_pg_interval(req.since) if req.since else None
+        sql, params = _build_preset_sql(
+            req.preset,
+            since_interval,
+            req.vehicle_id or None,
+            req.severity or None,
+            limit,
+        )
+        if sql is None:
+            raise HTTPException(status_code=400, detail=f"Unknown preset: {req.preset!r}")
+    else:
+        raise HTTPException(status_code=400, detail="Provide either 'preset' or 'sql'.")
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(_executor, _run_query_sync, sql, params, limit)
+
+    if result["error"]:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    # Serialize datetime/Decimal before returning
+    serialized = json.loads(json.dumps(result["rows"], default=json_default))
+    return {
+        "rows": serialized,
+        "count": result["count"],
+        "elapsed_ms": result["elapsed_ms"],
+        "sql": result["sql"],
+    }
 
 
 @app.get("/subscribe")
