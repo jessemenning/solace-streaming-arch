@@ -118,6 +118,11 @@ each payload to RisingWave's webhook endpoint. Every message embeds its original
 address in the `solace_topic` field. RisingWave uses SQL `WHERE` clauses on that field to
 replace Solace wildcard subscriptions.
 
+> **Why is `solace_topic` in the payload?** The RDP forwards only the message body — topic and
+> timestamp are stripped at the HTTP boundary. See [CLAUDE.md](CLAUDE.md) ("Why `solace_topic`
+> and timestamps are in the message payload") for the full constraint analysis and future
+> connector paths that would eliminate this workaround.
+
 Two queues prevent alert messages from being blocked behind high-volume telemetry:
 - `rw-ingest` — `fleet/telemetry/>` + `fleet/commands/>`
 - `events-ingest` — `fleet/events/>`

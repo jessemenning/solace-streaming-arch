@@ -57,6 +57,90 @@ has typed columns extracted from JSONB) as the source.
 `fleet_all_raw` uses `connector = 'webhook'` (TABLE, not SOURCE). The webhook endpoint URL
 is `http://risingwave:4560/webhook/dev/public/fleet_all_raw`. No auth is required.
 
+### Why `solace_topic` and timestamps are in the message payload
+
+The generator embeds `solace_topic`, `recorded_at`, and `occurred_at` directly in the JSON
+body of every message. This is a deliberate workaround for an HTTP transport constraint, not
+a design choice.
+
+**Root cause:** The Solace RDP forwards only the raw message body as the HTTP POST body. It
+does not forward Solace message metadata (destination, sender timestamp, user properties) to
+the webhook. RisingWave's webhook TABLE ingests only the HTTP request body — request headers
+are available solely in the `VALIDATE AS` clause for signature verification and are never
+written as data columns. There is no mechanism in the current architecture to carry
+per-message Solace metadata into a RisingWave table without embedding it in the payload.
+
+**Implication:** Solace topic wildcards (`fleet/telemetry/>`) cannot be used as RisingWave
+filter predicates. The routing MVs use `WHERE data->>'solace_topic' LIKE 'fleet/telemetry/%'`
+as the SQL equivalent. This works correctly but couples the generator to RisingWave's routing
+layer.
+
+**What was ruled out:**
+- Injecting topic/timestamp as HTTP headers via a custom bridge: RisingWave discards request
+  headers after the `VALIDATE AS` check — they never reach queryable columns.
+- Removing the fields and routing by webhook URL path: would require one webhook TABLE per
+  topic family and corresponding RDP REST consumer groups per URL — more operational
+  complexity than embedding the field.
+
+### Future connector paths — eliminating payload metadata
+
+Two approaches would allow a clean IoT payload (no `solace_topic` or timestamp fields in the
+message body):
+
+**Option 1 — Native Rust connector for RisingWave (correct long-term solution)**
+
+A native connector sits inside RisingWave's source framework and subscribes to Solace directly
+via the Solace C SDK (solclient) through Rust FFI bindings. It maps message envelope fields to
+dedicated table columns:
+
+```sql
+CREATE TABLE fleet_all (
+    data        JSONB,       -- raw payload, no metadata needed
+    _topic      VARCHAR,     -- from message.getDestination().getName()
+    _timestamp  TIMESTAMPTZ  -- from message.getSenderTimestamp()
+) WITH (connector = 'solace', solace.host = '...', solace.queue = 'rw-ingest');
+```
+
+Routing MVs then use `WHERE _topic LIKE 'fleet/telemetry/%'` — no payload dependency.
+This approach also enables proper Solace ACK on message commit, which the RDP/webhook path
+cannot provide.
+
+Effort: 5–9 weeks for a working POC (Rust/C FFI bindings ~2 weeks, RisingWave connector
+traits ~3 weeks, fault tolerance + testing ~2 weeks). No such connector currently exists in
+the RisingWave ecosystem — building one would be a genuine open-source contribution.
+
+**Option 2 — `INCLUDE header` support for RisingWave's webhook source (near-term contribution)**
+
+RisingWave's Kafka connector already supports `INCLUDE header 'header-name' AS col`. Extending
+that same syntax to the webhook source would allow a custom bridge (or any producer) to send
+topic and timestamp as HTTP headers, which RisingWave would materialise as first-class columns
+— no payload embedding required.
+
+```sql
+CREATE TABLE fleet_all (
+    data        JSONB
+)
+INCLUDE header 'x-message-topic'     AS _topic
+INCLUDE header 'x-message-timestamp' AS _timestamp
+WITH (connector = 'webhook');
+```
+
+Implementation path: add `WebhookMeta { headers: HeaderMap }` to `SourceMessage`, keep the
+`HeaderMap` alive after `VALIDATE AS`, extend the `INCLUDE` grammar and row builder. The Kafka
+`INCLUDE header` implementation is the direct precedent to follow.
+
+This feature does not exist yet. A GitHub issue has been opened to propose it:
+[risingwavelabs/risingwave#25321](https://github.com/risingwavelabs/risingwave/issues/25321)
+
+Effort: ~2–3 weeks for a merge-ready PR for someone new to the RisingWave codebase.
+
+**Option 3 — Solace Kafka interface + existing RisingWave Kafka connector (pragmatic shortcut)**
+
+Solace brokers expose a Kafka protocol endpoint. RisingWave's Kafka connector already surfaces
+`_rw_kafka_timestamp` as a system column and carries topic as first-class metadata. This gives
+clean payloads with zero new connector code. Tradeoffs: Kafka protocol overhead, loss of
+Solace-specific features (topic wildcards, user properties, message priority).
+
 ---
 
 ## File Map
