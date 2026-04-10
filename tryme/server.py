@@ -20,7 +20,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
@@ -108,6 +108,8 @@ def json_default(obj):
         return obj.isoformat()
     if isinstance(obj, Decimal):
         return float(obj)
+    if isinstance(obj, timedelta):
+        return str(obj)
     raise TypeError(f"Not serializable: {type(obj).__name__}")
 
 
