@@ -152,9 +152,13 @@ def duration_to_pg(s: str) -> str:
 # ── Output helpers ────────────────────────────────────────────────────────────
 
 def _serialize(v):
-    """Make a value JSON-serializable."""
+    """Make a value JSON-serializable (recurses into dicts and lists)."""
     if hasattr(v, "isoformat"):
         return v.isoformat()
+    if isinstance(v, dict):
+        return {k: _serialize(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_serialize(item) for item in v]
     return v
 
 
