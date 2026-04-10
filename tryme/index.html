@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solace+ Try Me</title>
   <style>
-    /* ── Design tokens ─────────────────────────────────────────── */
     :root {
       --dark-blue:    #03213B;
       --deep-blue:    #093B5F;
@@ -58,9 +57,7 @@
       font-size: 14px; font-weight: 700; color: var(--dark-blue);
       font-family: var(--font-mono);
     }
-    header h1 {
-      font-size: 16px; font-weight: 600; letter-spacing: 0.01em;
-    }
+    header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.01em; }
     header h1 span { color: var(--classic-green); }
     .header-meta {
       margin-left: auto;
@@ -75,26 +72,110 @@
     .conn-badge.err { color: var(--orange); border-color: var(--orange); }
     .conn-badge.loading { color: var(--text-muted); border-color: var(--text-muted); }
 
-    /* ── Layout ────────────────────────────────────────────────── */
-    .workspace {
+    /* ── Tab bar ───────────────────────────────────────────────── */
+    .tab-bar {
+      background: rgba(3,33,59,0.9);
+      border-bottom: 1px solid var(--border);
       display: flex;
-      flex: 1;
-      gap: 1px;
-      overflow: hidden;
-      background: rgba(0,0,0,0.25);
+      align-items: stretch;
+      flex-shrink: 0;
+      padding: 0 12px;
     }
+    .tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 22px;
+      height: 44px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: Figtree, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--classic-green);
+      border-bottom-color: var(--classic-green);
+    }
+    .tab-btn svg { flex-shrink: 0; }
 
-    .panel {
-      background: var(--panel-bg);
-      backdrop-filter: blur(8px);
+    /* ── Tab content ───────────────────────────────────────────── */
+    .tab-content {
+      flex: 1;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
+    }
+    .tab-panel {
+      display: none;
+      flex: 1;
       overflow: hidden;
     }
-    .panel-publisher  { width: 340px; flex-shrink: 0; border-right: 1px solid var(--border); }
-    .panel-subscriber { width: 360px; flex-shrink: 0; border-right: 1px solid var(--border); position: relative; }
-    .panel-query      { flex: 1; }
+    .tab-panel.active { display: flex; }
 
+    /* ── Publisher: two columns ────────────────────────────────── */
+    #tab-publisher { flex-direction: row; }
+    .pub-left {
+      width: 400px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--panel-bg);
+      backdrop-filter: blur(8px);
+    }
+    .pub-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: rgba(9,59,95,0.35);
+    }
+
+    /* ── Subscriber: two columns ───────────────────────────────── */
+    #tab-subscriber { flex-direction: row; }
+    .sub-left {
+      width: 400px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--panel-bg);
+      backdrop-filter: blur(8px);
+    }
+    .sub-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: rgba(9,59,95,0.35);
+    }
+
+    /* ── Query: two columns ────────────────────────────────────── */
+    #tab-query { flex-direction: row; }
+    .query-left {
+      width: 380px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--panel-bg);
+      backdrop-filter: blur(8px);
+    }
+    .query-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: rgba(9,59,95,0.35);
+    }
+
+    /* ── Panel header ──────────────────────────────────────────── */
     .panel-header {
       padding: 14px 18px 10px;
       border-bottom: 1px solid var(--border);
@@ -174,10 +255,7 @@
     .btn:active { transform: scale(0.97); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .btn-primary {
-      background: var(--classic-green);
-      color: var(--dark-blue);
-    }
+    .btn-primary { background: var(--classic-green); color: var(--dark-blue); }
     .btn-primary:hover:not(:disabled) { opacity: 0.9; }
 
     .btn-danger {
@@ -225,9 +303,7 @@
       width: 12px; height: 12px; border-radius: 50%;
       background: var(--text-muted); transition: left 0.15s, background 0.15s;
     }
-    .toggle-box.on {
-      background: rgba(0,200,149,0.25); border-color: var(--classic-green);
-    }
+    .toggle-box.on { background: rgba(0,200,149,0.25); border-color: var(--classic-green); }
     .toggle-box.on::after { left: 16px; background: var(--classic-green); }
     .hist-label { font-size: 12px; font-weight: 600; }
 
@@ -257,10 +333,7 @@
     .stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .stat-dot.hist { background: var(--tag-hist); }
     .stat-dot.live { background: var(--tag-live); animation: pulse 1.5s infinite; }
-    @keyframes pulse {
-      0%,100% { opacity: 1; }
-      50%      { opacity: 0.4; }
-    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
     .stat-count { font-weight: 600; color: var(--text); }
     .stat-label { color: var(--text-muted); }
 
@@ -303,10 +376,7 @@
       font-family: var(--font-mono); font-size: 11px; color: var(--sky-blue); flex: 1;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .msg-ts {
-      font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
-      flex-shrink: 0;
-    }
+    .msg-ts { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
     .msg-chevron { color: var(--text-muted); font-size: 10px; flex-shrink: 0; transition: transform 0.15s; }
     .msg-card.expanded .msg-chevron { transform: rotate(90deg); }
 
@@ -340,9 +410,7 @@
 
     /* ── Publisher log ─────────────────────────────────────────── */
     .pub-log {
-      flex: 1; overflow-y: auto;
-      padding: 8px;
-      border-top: 1px solid var(--border);
+      flex: 1; overflow-y: auto; padding: 8px;
     }
     .pub-log::-webkit-scrollbar { width: 4px; }
     .pub-log::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
@@ -361,7 +429,7 @@
 
     /* ── Scroll to bottom button ───────────────────────────────── */
     .scroll-btn {
-      position: absolute; bottom: 44px; right: 12px;
+      position: absolute; bottom: 12px; right: 12px;
       background: var(--deep-blue); border: 1px solid var(--border);
       color: var(--classic-green); border-radius: 50%;
       width: 32px; height: 32px;
@@ -372,12 +440,12 @@
     }
     .scroll-btn.visible { opacity: 1; pointer-events: all; }
 
-    /* ── Panels scroll ─────────────────────────────────────────── */
-    .panel-publisher .pub-scroll {
+    /* ── Publisher left scroll area ────────────────────────────── */
+    .pub-scroll {
       flex: 1; overflow-y: auto; display: flex; flex-direction: column;
     }
-    .panel-publisher .pub-scroll::-webkit-scrollbar { width: 4px; }
-    .panel-publisher .pub-scroll::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
+    .pub-scroll::-webkit-scrollbar { width: 4px; }
+    .pub-scroll::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
 
     /* ── Empty state ───────────────────────────────────────────── */
     .empty-state {
@@ -392,7 +460,6 @@
        QUERY PANEL
     ══════════════════════════════════════════════════════════════ */
 
-    /* ── Preset chips (bright-green accent) ───────────────────── */
     .preset-chip {
       font-family: var(--font-mono); font-size: 10px;
       padding: 3px 9px; border-radius: 20px;
@@ -402,18 +469,9 @@
       transition: background 0.12s, color 0.12s, border-color 0.12s;
       white-space: nowrap;
     }
-    .preset-chip:hover {
-      background: rgba(171,255,136,0.1);
-      color: var(--bright-green);
-      border-color: var(--bright-green);
-    }
-    .preset-chip.active {
-      background: rgba(171,255,136,0.18);
-      color: var(--bright-green);
-      border-color: var(--bright-green);
-    }
+    .preset-chip:hover { background: rgba(171,255,136,0.1); color: var(--bright-green); border-color: var(--bright-green); }
+    .preset-chip.active { background: rgba(171,255,136,0.18); color: var(--bright-green); border-color: var(--bright-green); }
 
-    /* ── Preset groups ────────────────────────────────────────── */
     .preset-group { padding: 10px 18px 0; }
     .preset-group-label {
       font-size: 10px; font-family: var(--font-mono);
@@ -421,35 +479,28 @@
       letter-spacing: 0.08em; margin-bottom: 5px;
     }
 
-    /* ── Query controls scroll area ───────────────────────────── */
+    /* Query controls fills remaining left column height */
     .query-controls {
-      flex-shrink: 0;
+      flex: 1;
       overflow-y: auto;
-      max-height: 48%;
       border-bottom: 1px solid var(--border);
     }
     .query-controls::-webkit-scrollbar { width: 3px; }
     .query-controls::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.3); border-radius: 2px; }
 
-    /* ── Filter area ──────────────────────────────────────────── */
     .query-filters {
       padding: 10px 18px 12px;
       border-top: 1px solid var(--border);
     }
-    .preset-desc {
-      font-size: 11px; color: var(--text-muted); line-height: 1.5;
-      margin-bottom: 8px;
-    }
+    .preset-desc { font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px; }
     .filter-section-label {
       font-size: 10px; font-family: var(--font-mono); text-transform: uppercase;
       color: var(--text-muted); letter-spacing: 0.06em; margin-bottom: 5px; margin-top: 10px;
     }
     .filter-dur-row { display: flex; flex-wrap: wrap; gap: 5px; }
-
     .filter-sev-veh { margin-top: 10px; display: flex; gap: 12px; align-items: flex-start; }
     .filter-block { flex: 1; }
 
-    /* ── Custom SQL ───────────────────────────────────────────── */
     .custom-sql-toggle {
       padding: 8px 18px;
       display: flex; align-items: center; gap: 6px;
@@ -464,12 +515,8 @@
 
     .custom-sql-section { padding: 0 18px 12px; display: none; }
     .custom-sql-section.open { display: block; }
-    .sql-hint {
-      font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);
-      margin-top: 5px;
-    }
+    .sql-hint { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 5px; }
 
-    /* ── Limit row ────────────────────────────────────────────── */
     .limit-row {
       padding: 8px 18px 10px;
       display: flex; align-items: center; gap: 10px;
@@ -478,7 +525,6 @@
     .limit-row label { margin: 0; white-space: nowrap; }
     .limit-chips { display: flex; gap: 5px; flex-wrap: wrap; }
 
-    /* ── Query metadata bar ───────────────────────────────────── */
     .qmeta {
       padding: 5px 18px;
       background: rgba(3,33,59,0.8);
@@ -491,22 +537,14 @@
     }
     .qmeta-ok  { color: var(--classic-green); white-space: nowrap; }
     .qmeta-err { color: var(--orange); white-space: nowrap; }
-    .qmeta-sql {
-      flex: 1; overflow: hidden; text-overflow: ellipsis;
-      white-space: nowrap; opacity: 0.5;
-    }
+    .qmeta-sql { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.5; }
     .qmeta-time { white-space: nowrap; }
 
-    /* ── Results area ─────────────────────────────────────────── */
-    .qresults-wrap {
-      flex: 1;
-      overflow: auto;
-    }
+    .qresults-wrap { flex: 1; overflow: auto; }
     .qresults-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
     .qresults-wrap::-webkit-scrollbar-track { background: transparent; }
     .qresults-wrap::-webkit-scrollbar-thumb { background: rgba(0,200,149,0.25); border-radius: 3px; }
 
-    /* ── Results table ────────────────────────────────────────── */
     .rtable-wrap { overflow: auto; min-width: 100%; }
     table.rtable {
       border-collapse: collapse;
@@ -531,7 +569,6 @@
     }
     table.rtable tr:hover td { background: rgba(0,200,149,0.04); }
 
-    /* Cell type colors */
     .td-null   { color: var(--text-muted); font-style: italic; }
     .td-num    { color: var(--orange); }
     .td-ts     { color: var(--sky-blue); }
@@ -540,60 +577,6 @@
     .td-sev-medium { color: var(--sunrise); font-weight: 600; }
     .td-sev-low    { color: var(--classic-green); }
     .td-json   { color: var(--text-muted); }
-
-    /* ── Collapsible publisher / subscriber panels ─────────── */
-    .panel-publisher, .panel-subscriber {
-      transition: width 0.2s ease;
-    }
-    .panel-publisher.collapsed  { width: 38px !important; }
-    .panel-subscriber.collapsed { width: 38px !important; }
-
-    .panel-collapse-tab {
-      display: none;
-      width: 38px;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      flex: 1;
-      transition: background 0.12s;
-    }
-    .panel-collapse-tab:hover { background: rgba(0,200,149,0.08); }
-    .panel.collapsed .panel-collapse-tab { display: flex; }
-    .panel.collapsed .panel-content { display: none; }
-
-    .panel-content {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .panel-tab-label {
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--classic-green);
-      user-select: none;
-      white-space: nowrap;
-      opacity: 0.8;
-    }
-
-    .panel-toggle-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 16px;
-      padding: 2px 6px;
-      border-radius: 3px;
-      line-height: 1;
-      transition: color 0.12s, background 0.12s;
-      flex-shrink: 0;
-    }
-    .panel-toggle-btn:hover { color: var(--text); background: rgba(127,168,201,0.1); }
   </style>
 </head>
 <body>
@@ -608,59 +591,89 @@
   </div>
 </header>
 
-<!-- ── Workspace ──────────────────────────────────────────────────────────── -->
-<div class="workspace">
+<!-- ── Tab bar ────────────────────────────────────────────────────────────── -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="publisher" onclick="switchTab('publisher')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"/>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </svg>
+    Publisher
+  </button>
+  <button class="tab-btn" data-tab="subscriber" onclick="switchTab('subscriber')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+      <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+      <circle cx="12" cy="20" r="1" fill="currentColor"/>
+    </svg>
+    Subscriber
+  </button>
+  <button class="tab-btn" data-tab="query" onclick="switchTab('query')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    Ad-hoc Query
+  </button>
+</div>
 
-  <!-- ═══════════════════ PUBLISHER ═════════════════════════════════════════ -->
-  <div class="panel panel-publisher collapsed" id="pubPanel">
-    <div class="panel-collapse-tab" onclick="togglePanel('pubPanel')" title="Expand Publisher">
-      <span class="panel-tab-label">Publisher</span>
-    </div>
-    <div class="panel-content">
+<!-- ── Tab content ────────────────────────────────────────────────────────── -->
+<div class="tab-content">
+
+  <!-- ═══════════════════ PUBLISHER ═══════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-publisher">
+
+    <!-- Left: form controls -->
+    <div class="pub-left">
       <div class="panel-header">
         <div>
           <div class="panel-label">Publisher</div>
           <div class="panel-title">Send Messages</div>
         </div>
-        <button class="panel-toggle-btn" onclick="togglePanel('pubPanel')" title="Collapse">⟨</button>
       </div>
-
-    <div class="pub-scroll">
-      <!-- Connection info (read-only) -->
-      <div class="field">
-        <label>Broker URL</label>
-        <div class="readonly-field" id="cfgHost">—</div>
-      </div>
-      <div class="field">
-        <label>Message VPN</label>
-        <div class="readonly-field" id="cfgVpn">—</div>
-      </div>
-      <div class="field">
-        <label>Username</label>
-        <div class="readonly-field" id="cfgUser">—</div>
-      </div>
-
-      <!-- Topic -->
-      <div class="field">
-        <label>Topic</label>
-        <input type="text" id="pubTopic" placeholder="fleet/telemetry/vehicle_001/metrics/speed" />
-        <div class="chip-row" id="pubTopicChips"></div>
-      </div>
-
-      <!-- Payload -->
-      <div class="field">
-        <label>Payload (JSON)</label>
-        <textarea id="pubPayload" rows="6" placeholder='{"vehicle_id":"vehicle_001","speed":62.4}'></textarea>
-        <div class="chip-row">
-          <div class="chip" onclick="formatPayload()">Format</div>
-          <div class="chip" onclick="fillTemplate('speed')">Template: Speed</div>
-          <div class="chip" onclick="fillTemplate('alert')">Template: Alert</div>
-          <div class="chip" onclick="fillTemplate('location')">Template: Location</div>
+      <div class="pub-scroll">
+        <div class="field">
+          <label>Broker URL</label>
+          <div class="readonly-field" id="cfgHost">—</div>
+        </div>
+        <div class="field">
+          <label>Message VPN</label>
+          <div class="readonly-field" id="cfgVpn">—</div>
+        </div>
+        <div class="field">
+          <label>Username</label>
+          <div class="readonly-field" id="cfgUser">—</div>
+        </div>
+        <div class="field">
+          <label>Topic</label>
+          <input type="text" id="pubTopic" placeholder="fleet/telemetry/vehicle_001/metrics/speed" />
+          <div class="chip-row" id="pubTopicChips"></div>
+        </div>
+        <div class="field">
+          <label>Payload (JSON)</label>
+          <textarea id="pubPayload" rows="6" placeholder='{"vehicle_id":"vehicle_001","speed":62.4}'></textarea>
+          <div class="chip-row">
+            <div class="chip" onclick="formatPayload()">Format</div>
+            <div class="chip" onclick="fillTemplate('speed')">Template: Speed</div>
+            <div class="chip" onclick="fillTemplate('alert')">Template: Alert</div>
+            <div class="chip" onclick="fillTemplate('location')">Template: Location</div>
+          </div>
         </div>
       </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="pubBtn" onclick="doPublish()">▶ Publish</button>
+        <button class="btn btn-ghost" onclick="clearPubLog()">Clear</button>
+      </div>
+    </div>
 
-      <div class="field">
-        <label>Published log</label>
+    <!-- Right: publish log -->
+    <div class="pub-right">
+      <div class="panel-header">
+        <div>
+          <div class="panel-label">Published Log</div>
+          <div class="panel-title">Activity</div>
+        </div>
       </div>
       <div class="pub-log" id="pubLog">
         <div class="empty-state">
@@ -670,178 +683,165 @@
       </div>
     </div>
 
-    <div class="btn-row">
-      <button class="btn btn-primary" id="pubBtn" onclick="doPublish()">▶ Publish</button>
-      <button class="btn btn-ghost" onclick="clearPubLog()">Clear</button>
-    </div>
-    </div><!-- /panel-content -->
-  </div>
+  </div><!-- /tab-publisher -->
 
-  <!-- ═══════════════════ SUBSCRIBER ════════════════════════════════════════ -->
-  <div class="panel panel-subscriber collapsed" id="subPanel">
-    <div class="panel-collapse-tab" onclick="togglePanel('subPanel')" title="Expand Subscriber">
-      <span class="panel-tab-label">Subscriber</span>
-    </div>
-    <div class="panel-content">
+  <!-- ═══════════════════ SUBSCRIBER ══════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-subscriber">
+
+    <!-- Left: controls -->
+    <div class="sub-left">
       <div class="panel-header">
         <div>
           <div class="panel-label">Subscriber</div>
           <div class="panel-title">Receive Messages</div>
         </div>
-        <button class="panel-toggle-btn" onclick="togglePanel('subPanel')" title="Collapse">⟨</button>
       </div>
-
-    <!-- Topic pattern -->
-    <div class="field">
-      <label>Topic Pattern</label>
-      <input type="text" id="subTopic" placeholder="fleet/events/*/alerts/high" />
-      <div class="chip-row" id="subTopicChips"></div>
-    </div>
-
-    <!-- History -->
-    <div class="hist-section">
-      <div class="hist-header">
-        <label class="hist-toggle" onclick="toggleHistory()">
-          <div class="toggle-box on" id="histToggle"></div>
-          <span class="hist-label">Replay historical data first</span>
-        </label>
+      <div class="field">
+        <label>Topic Pattern</label>
+        <input type="text" id="subTopic" placeholder="fleet/events/*/alerts/high" />
+        <div class="chip-row" id="subTopicChips"></div>
       </div>
-      <div id="histControls">
-        <div style="margin-bottom:6px; font-size:11px; color:var(--text-muted);">How far back?</div>
-        <div class="duration-presets" id="durationChips"></div>
-      </div>
-    </div>
-
-    <!-- Subscribe controls -->
-    <div class="btn-row" style="border-top:none; padding-top:0; padding-bottom:10px;">
-      <button class="btn btn-primary" id="subBtn" onclick="doSubscribe()">▶ Subscribe</button>
-      <button class="btn btn-danger" id="stopBtn" onclick="doStop()" disabled>■ Stop</button>
-      <button class="btn btn-ghost" onclick="clearMessages()">Clear</button>
-    </div>
-
-    <!-- Stats bar -->
-    <div class="stream-header">
-      <div class="stream-stats">
-        <div class="stat-item">
-          <div class="stat-dot hist"></div>
-          <span class="stat-count" id="histCount">0</span>
-          <span class="stat-label">historical</span>
+      <div class="hist-section">
+        <div class="hist-header">
+          <label class="hist-toggle" onclick="toggleHistory()">
+            <div class="toggle-box on" id="histToggle"></div>
+            <span class="hist-label">Replay historical data first</span>
+          </label>
         </div>
-        <div class="stat-item">
-          <div class="stat-dot live"></div>
-          <span class="stat-count" id="liveCount">0</span>
-          <span class="stat-label">live</span>
-        </div>
-        <div class="stat-item" style="margin-left:auto;">
-          <span class="stat-count" id="totalCount">0</span>
-          <span class="stat-label">total</span>
+        <div id="histControls">
+          <div style="margin-bottom:6px; font-size:11px; color:var(--text-muted);">How far back?</div>
+          <div class="duration-presets" id="durationChips"></div>
         </div>
       </div>
-    </div>
-
-    <!-- Message stream -->
-    <div class="stream-body" id="streamBody">
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">📡</div>
-        <div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div>
+      <div class="btn-row" style="border-top:none; padding-top:0; padding-bottom:10px;">
+        <button class="btn btn-primary" id="subBtn" onclick="doSubscribe()">▶ Subscribe</button>
+        <button class="btn btn-danger" id="stopBtn" onclick="doStop()" disabled>■ Stop</button>
+        <button class="btn btn-ghost" onclick="clearMessages()">Clear</button>
+      </div>
+      <div class="status-bar" id="statusBar">
+        <span class="status-icon">○</span>
+        <span id="statusText">Not connected</span>
       </div>
     </div>
 
-    <!-- Scroll to bottom -->
-    <div class="scroll-btn" id="scrollBtn" onclick="scrollToBottom()" title="Jump to latest">↓</div>
-
-    <!-- Status bar -->
-    <div class="status-bar" id="statusBar">
-      <span class="status-icon">○</span>
-      <span id="statusText">Not connected</span>
-    </div>
-    </div><!-- /panel-content -->
-  </div>
-
-  <!-- ═══════════════════ QUERY ══════════════════════════════════════════════ -->
-  <div class="panel panel-query">
-    <div class="panel-header">
-      <div>
-        <div class="panel-label">Ad-hoc Query</div>
-        <div class="panel-title">Query History</div>
-      </div>
-    </div>
-
-    <!-- Controls scroll area: presets + filters + custom SQL + limit -->
-    <div class="query-controls">
-
-      <!-- Preset chips by category -->
-      <div id="presetGroups"></div>
-
-      <!-- Description + filter rows (shown after selecting a preset) -->
-      <div class="query-filters" id="queryFilters" style="display:none;">
-        <div class="preset-desc" id="presetDesc"></div>
-
-        <!-- Time window filter -->
-        <div id="filterSince" style="display:none;">
-          <div class="filter-section-label">Time window</div>
-          <div class="filter-dur-row" id="queryDurChips"></div>
+    <!-- Right: stream -->
+    <div class="sub-right">
+      <div class="stream-header">
+        <div class="stream-stats">
+          <div class="stat-item">
+            <div class="stat-dot hist"></div>
+            <span class="stat-count" id="histCount">0</span>
+            <span class="stat-label">historical</span>
+          </div>
+          <div class="stat-item">
+            <div class="stat-dot live"></div>
+            <span class="stat-count" id="liveCount">0</span>
+            <span class="stat-label">live</span>
+          </div>
+          <div class="stat-item" style="margin-left:auto;">
+            <span class="stat-count" id="totalCount">0</span>
+            <span class="stat-label">total</span>
+          </div>
         </div>
+      </div>
+      <div class="stream-body" id="streamBody">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">📡</div>
+          <div class="empty-text">Subscribe to a topic pattern to see messages.<br/>Enable history replay to receive past events first.</div>
+        </div>
+      </div>
+      <div class="scroll-btn" id="scrollBtn" onclick="scrollToBottom()" title="Jump to latest">↓</div>
+    </div>
 
-        <!-- Severity + vehicle filters -->
-        <div class="filter-sev-veh" id="filterSevVeh" style="display:none;">
-          <div class="filter-block" id="filterSevGroup" style="display:none;">
-            <div class="filter-section-label">Severity</div>
-            <div style="display:flex; gap:5px; flex-wrap:wrap;">
-              <div class="q-sev-chip chip active" data-sev="" onclick="selectSev(this)">All</div>
-              <div class="q-sev-chip chip" data-sev="high" onclick="selectSev(this)">high</div>
-              <div class="q-sev-chip chip" data-sev="medium" onclick="selectSev(this)">medium</div>
-              <div class="q-sev-chip chip" data-sev="low" onclick="selectSev(this)">low</div>
+  </div><!-- /tab-subscriber -->
+
+  <!-- ═══════════════════ QUERY ════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-query">
+
+    <!-- Left: presets + filters + SQL -->
+    <div class="query-left">
+      <div class="panel-header">
+        <div>
+          <div class="panel-label">Ad-hoc Query</div>
+          <div class="panel-title">Query History</div>
+        </div>
+      </div>
+      <div class="query-controls">
+        <div id="presetGroups"></div>
+        <div class="query-filters" id="queryFilters" style="display:none;">
+          <div class="preset-desc" id="presetDesc"></div>
+          <div id="filterSince" style="display:none;">
+            <div class="filter-section-label">Time window</div>
+            <div class="filter-dur-row" id="queryDurChips"></div>
+          </div>
+          <div class="filter-sev-veh" id="filterSevVeh" style="display:none;">
+            <div class="filter-block" id="filterSevGroup" style="display:none;">
+              <div class="filter-section-label">Severity</div>
+              <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                <div class="q-sev-chip chip active" data-sev="" onclick="selectSev(this)">All</div>
+                <div class="q-sev-chip chip" data-sev="high" onclick="selectSev(this)">high</div>
+                <div class="q-sev-chip chip" data-sev="medium" onclick="selectSev(this)">medium</div>
+                <div class="q-sev-chip chip" data-sev="low" onclick="selectSev(this)">low</div>
+              </div>
+            </div>
+            <div class="filter-block" id="filterVehGroup" style="display:none;">
+              <div class="filter-section-label">Vehicle ID</div>
+              <input type="text" id="filterVehicle" placeholder="vehicle_005" />
             </div>
           </div>
-          <div class="filter-block" id="filterVehGroup" style="display:none;">
-            <div class="filter-section-label">Vehicle ID</div>
-            <input type="text" id="filterVehicle" placeholder="vehicle_005" />
-          </div>
+        </div>
+        <div class="custom-sql-toggle" onclick="toggleCustomSql()">
+          <span class="custom-sql-caret" id="customSqlCaret">›</span>
+          <span>Custom SQL</span>
+        </div>
+        <div class="custom-sql-section" id="customSqlSection">
+          <textarea id="customSqlInput" rows="4"
+            placeholder="SELECT vehicle_id, occurred_at FROM high_severity_alerts ORDER BY occurred_at DESC LIMIT 20"></textarea>
+          <div class="sql-hint">SELECT only — DROP / CREATE / ALTER not permitted</div>
+        </div>
+        <div class="limit-row">
+          <label>Row limit</label>
+          <div class="limit-chips" id="limitChips"></div>
         </div>
       </div>
-
-      <!-- Custom SQL collapsible -->
-      <div class="custom-sql-toggle" onclick="toggleCustomSql()">
-        <span class="custom-sql-caret" id="customSqlCaret">›</span>
-        <span>Custom SQL</span>
-      </div>
-      <div class="custom-sql-section" id="customSqlSection">
-        <textarea id="customSqlInput" rows="4"
-          placeholder="SELECT vehicle_id, occurred_at FROM high_severity_alerts ORDER BY occurred_at DESC LIMIT 20"></textarea>
-        <div class="sql-hint">SELECT only — DROP / CREATE / ALTER not permitted</div>
-      </div>
-
-      <!-- Limit chips -->
-      <div class="limit-row">
-        <label>Row limit</label>
-        <div class="limit-chips" id="limitChips"></div>
-      </div>
-
-    </div><!-- /query-controls -->
-
-    <!-- Action buttons -->
-    <div class="btn-row">
-      <button class="btn btn-primary" id="runQueryBtn" onclick="doQuery()">▶ Run Query</button>
-      <button class="btn btn-ghost" onclick="clearQueryResults()">Clear</button>
-    </div>
-
-    <!-- Metadata bar -->
-    <div class="qmeta" id="qMeta"></div>
-
-    <!-- Results -->
-    <div class="qresults-wrap" id="qResultsWrap">
-      <div class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <div class="empty-text">Select a preset or write custom SQL,<br/>then click Run Query.</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="runQueryBtn" onclick="doQuery()">▶ Run Query</button>
+        <button class="btn btn-ghost" onclick="clearQueryResults()">Clear</button>
       </div>
     </div>
 
-  </div><!-- /panel-query -->
+    <!-- Right: results -->
+    <div class="query-right">
+      <div class="panel-header">
+        <div>
+          <div class="panel-label">Results</div>
+          <div class="panel-title">Query Output</div>
+        </div>
+      </div>
+      <div class="qmeta" id="qMeta"></div>
+      <div class="qresults-wrap" id="qResultsWrap">
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">Select a preset or write custom SQL,<br/>then click Run Query.</div>
+        </div>
+      </div>
+    </div>
 
-</div><!-- /workspace -->
+  </div><!-- /tab-query -->
+
+</div><!-- /tab-content -->
 
 <script>
+// ══════════════════════════════════════════════════════════════════════════════
+// Tab switching
+// ══════════════════════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + name));
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Subscribe panel state
 // ══════════════════════════════════════════════════════════════════════════════
@@ -873,7 +873,7 @@ const TEMPLATES = {
 // ══════════════════════════════════════════════════════════════════════════════
 let qPresets        = [];
 let qSelectedPreset = null;
-let qSelectedDur    = null;    // null = no time filter
+let qSelectedDur    = null;
 let qSelectedSev    = '';
 let qSelectedLimit  = 100;
 
@@ -890,7 +890,6 @@ async function init() {
     document.getElementById('cfgVpn').textContent  = cfg.solace.vpn;
     document.getElementById('cfgUser').textContent = cfg.solace.user;
 
-    // Connection badges
     const sb = document.getElementById('solaceBadge');
     if (cfg.solace.sdk_available) {
       sb.textContent = '✓ Solace SMF';
@@ -903,7 +902,6 @@ async function init() {
     rb.textContent = `✓ RisingWave :${cfg.risingwave.port}`;
     rb.className = 'conn-badge ok';
 
-    // Topic chips for publisher + subscriber
     const topics = cfg.topics || [];
     buildTopicChips('pubTopicChips', topics.map(t => t.pattern), (p) => {
       document.getElementById('pubTopic').value = p;
@@ -915,11 +913,8 @@ async function init() {
       if (entry && entry.has_history && !histEnabled) toggleHistory();
     });
 
-    // Duration chips for subscribe panel
     const durs = cfg.duration_presets || ['15m','30m','1h','4h','24h'];
     buildDurationChips(durs);
-
-    // Query panel
     initQueryPanel(cfg.query_presets || [], durs);
 
   } catch (e) {
@@ -1266,7 +1261,6 @@ function initQueryPanel(presets, durPresets) {
   buildLimitChips();
 }
 
-// ── Build preset chip groups ──────────────────────────────────────────────────
 function buildPresetGroups(presets) {
   const container = document.getElementById('presetGroups');
   container.innerHTML = '';
@@ -1298,21 +1292,16 @@ function buildPresetGroups(presets) {
     grp.appendChild(row);
     container.appendChild(grp);
   });
-  // Bottom padding after last group
   const pad = document.createElement('div');
   pad.style.height = '10px';
   container.appendChild(pad);
 }
 
-// ── Select a preset ───────────────────────────────────────────────────────────
 function selectPreset(id) {
   qSelectedPreset = id;
-
-  // Clear custom SQL + close it
   document.getElementById('customSqlInput').value = '';
   closeCustomSql();
 
-  // Update chip active state
   document.querySelectorAll('.preset-chip').forEach(c => {
     c.classList.toggle('active', c.dataset.id === id);
   });
@@ -1320,27 +1309,21 @@ function selectPreset(id) {
   const preset = qPresets.find(p => p.id === id);
   if (!preset) return;
 
-  // Show description
   const filters = document.getElementById('queryFilters');
   filters.style.display = 'block';
   document.getElementById('presetDesc').textContent = preset.description;
-
-  // Time window
   document.getElementById('filterSince').style.display = preset.supports_since ? 'block' : 'none';
 
-  // Sev / vehicle
   const hasSevVeh = preset.supports_severity || preset.supports_vehicle;
   document.getElementById('filterSevVeh').style.display = hasSevVeh ? 'flex' : 'none';
   document.getElementById('filterSevGroup').style.display = preset.supports_severity ? 'block' : 'none';
   document.getElementById('filterVehGroup').style.display = preset.supports_vehicle ? 'block' : 'none';
 }
 
-// ── Duration chips for query panel ────────────────────────────────────────────
 function buildQueryDurChips(durs) {
   const el = document.getElementById('queryDurChips');
   el.innerHTML = '';
 
-  // "None" = no time filter
   const none = document.createElement('div');
   none.className = 'dur-chip' + (qSelectedDur === null ? ' active' : '');
   none.textContent = 'none';
@@ -1363,7 +1346,6 @@ function selectQueryDur(dur) {
   });
 }
 
-// ── Limit chips ───────────────────────────────────────────────────────────────
 function buildLimitChips() {
   const el = document.getElementById('limitChips');
   el.innerHTML = '';
@@ -1383,7 +1365,6 @@ function selectLimit(n) {
   });
 }
 
-// ── Severity chip ─────────────────────────────────────────────────────────────
 function selectSev(el) {
   qSelectedSev = el.dataset.sev;
   document.querySelectorAll('.q-sev-chip').forEach(c => {
@@ -1391,14 +1372,12 @@ function selectSev(el) {
   });
 }
 
-// ── Custom SQL toggle ─────────────────────────────────────────────────────────
 function toggleCustomSql() {
   const sec    = document.getElementById('customSqlSection');
   const caret  = document.getElementById('customSqlCaret');
   const isOpen = sec.classList.toggle('open');
   caret.classList.toggle('open', isOpen);
   if (isOpen) {
-    // Deselect preset when opening custom SQL
     qSelectedPreset = null;
     document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
     document.getElementById('queryFilters').style.display = 'none';
@@ -1410,7 +1389,6 @@ function closeCustomSql() {
   document.getElementById('customSqlCaret').classList.remove('open');
 }
 
-// ── Run query ─────────────────────────────────────────────────────────────────
 async function doQuery() {
   const btn       = document.getElementById('runQueryBtn');
   const customSql = document.getElementById('customSqlInput').value.trim();
@@ -1479,7 +1457,6 @@ function showQueryError(msg) {
     `<div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text">${escHtml(msg)}</div></div>`;
 }
 
-// ── Render results table ──────────────────────────────────────────────────────
 function renderQueryResults(data) {
   showQueryMeta('ok', data.count, data.elapsed_ms, data.sql);
 
@@ -1545,11 +1522,6 @@ function escHtml(s) {
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;');
-}
-
-// ── Panel collapse / expand ───────────────────────────────────────────────────
-function togglePanel(id) {
-  document.getElementById(id).classList.toggle('collapsed');
 }
 
 // Boot
