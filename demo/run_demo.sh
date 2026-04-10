@@ -70,7 +70,7 @@ wait_for_url() {
   [[ -n "${user}" ]] && curl_auth=(-u "${user}")
 
   log "Waiting for ${label} at ${url}..."
-  while ! curl -sf "${curl_auth[@]}" "${url}" > /dev/null 2>&1; do
+  while ! curl -sf ${curl_auth[@]+"${curl_auth[@]}"} "${url}" > /dev/null 2>&1; do
     sleep 5
     elapsed=$((elapsed + 5))
     if [[ ${elapsed} -ge ${max_wait} ]]; then
@@ -157,6 +157,8 @@ docker-compose down --remove-orphans 2>/dev/null || true
 
 # ─── STEP 1: Build and start infrastructure ───────────────────────────────────
 log "=== STEP 1: Starting infrastructure ==="
+# Pre-create the registry file so Docker bind-mount doesn't create it as a directory
+touch config/topic-mv-registry.yaml
 if [[ "${SKIP_BUILD}" == "true" ]]; then
   log "Skipping build (--skip-build set)"
   docker-compose up -d
@@ -187,7 +189,7 @@ bash config/solace/setup.sh localhost
 # ─── STEP 4: Initialize RisingWave schema ────────────────────────────────────
 log "=== STEP 4: Initializing RisingWave CDC table and materialized views ==="
 
-# Generate topic-mv-registry.yaml (read by solace+ CLI).
+# Generate topic-mv-registry.yaml on the host (read by solace+ CLI).
 # Use EP catalog if SOLACE_CLOUD_TOKEN is set; otherwise generate static mappings only.
 SOLACE_CLOUD_TOKEN="${SOLACE_CLOUD_TOKEN:-$(grep -E '^SOLACE_CLOUD_TOKEN=' .env 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' ')}"
 if [[ -n "${SOLACE_CLOUD_TOKEN}" ]]; then
@@ -198,7 +200,36 @@ else
   ${PYTHON} generate_mvs.py --skip-ep 2>&1 | sed 's/^/  /'
 fi
 
-psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
+# ep-setup also applies init.sql inside the container. Wait for it to finish
+# before running psql from the host — concurrent applies cause DROP failures
+# on streaming jobs still in 'creating' state.
+log "  Waiting for ep-setup container to complete schema setup..."
+ep_elapsed=0
+ep_setup_ok=false
+while true; do
+  ep_status=$(docker inspect --format='{{.State.Status}}' ep-setup 2>/dev/null || echo "unknown")
+  if [[ "${ep_status}" == "exited" ]]; then
+    ep_exit=$(docker inspect --format='{{.State.ExitCode}}' ep-setup 2>/dev/null || echo "1")
+    if [[ "${ep_exit}" == "0" ]]; then
+      log "  ep-setup finished successfully — schema already applied."
+      ep_setup_ok=true
+    else
+      log "  ep-setup exited with code ${ep_exit} — will apply schema from host."
+    fi
+    break
+  fi
+  sleep 3
+  ep_elapsed=$((ep_elapsed + 3))
+  if [[ ${ep_elapsed} -ge 120 ]]; then
+    log "  ep-setup did not complete within 120s — applying schema from host."
+    break
+  fi
+  log "  still waiting for ep-setup... (${ep_elapsed}s, status=${ep_status})"
+done
+
+if [[ "${ep_setup_ok}" != "true" ]]; then
+  psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
+fi
 log "  RisingWave schema initialized."
 
 # ─── STEP 5: Generator ───────────────────────────────────────────────────────

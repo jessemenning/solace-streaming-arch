@@ -11,7 +11,7 @@ Topic hierarchy:
   fleet/commands/{vehicle_id}/{command_type}           — vehicle commands (demo only)
 
 Usage:
-  python generator.py [--host tcp://localhost:55555] [--vpn streaming-poc]
+  python generator.py [--host tcp://localhost:55554] [--vpn streaming-poc]
                       [--user streaming-user] [--password default]
                       [--vehicles 20] [--burst] [--burst-vehicle vehicle_005]
 """
@@ -277,7 +277,7 @@ def run_simulation(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fleet telemetry simulator")
-    parser.add_argument("--host",           default="tcp://localhost:55555")
+    parser.add_argument("--host",           default="tcp://localhost:55554")
     parser.add_argument("--vpn",            default="streaming-poc")
     parser.add_argument("--user",           default="streaming-user")
     parser.add_argument("--password",       default="default")

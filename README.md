@@ -106,7 +106,7 @@ FROM vehicles_in_region_boston ORDER BY recorded_at DESC LIMIT 10;
 | **Solace+ Try Me (pub/sub + history replay)** | **http://localhost:8091** | — |
 | Solace Platform admin | http://localhost:8180 | admin / admin |
 | RisingWave Dashboard | http://localhost:5691 | — |
-| Solace SMF (SDK) | tcp://localhost:55555 | streaming-user / default |
+| Solace SMF (SDK) | tcp://localhost:55554 | streaming-user / default |
 | RisingWave SQL | localhost:4566 | root / *(none)* |
 
 ---

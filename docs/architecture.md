@@ -33,7 +33,7 @@ config/risingwave/init.sql   (auto-generated — one MV per EP event version)
 Fleet vehicles
      │  native Python SDK  (solace-pubsubplus)
      ▼
-Solace Platform Event Broker   port 55555 (SMF)
+Solace Platform Event Broker   port 55554 (SMF)
   VPN: streaming-poc
   Queue: rw-ingest  ← subscription: fleet/>  (durable, guaranteed delivery)
      │

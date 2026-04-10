@@ -220,7 +220,7 @@ fleet/commands/{vehicle_id}/{command_type}
 | Service | Host port | Notes |
 |---|---|---|
 | Solace SEMP admin | 8180 | Host 8080 was in use; mapped to 8180 |
-| Solace SMF (SDK) | 55555 | Native Solace protocol |
+| Solace SMF (SDK) | 55554 | Host port → container 55555 (Native Solace protocol) |
 | Solace MQTT | 1883 | — |
 | RisingWave SQL (psql) | 4566 | Postgres wire protocol |
 | RisingWave webhook | 4560 | HTTP POST from Solace RDP → `fleet_all_raw` table |
@@ -331,7 +331,7 @@ solace+ env vars (override defaults via `.env` or export):
 |---|---|---|
 | `RW_HOST` | `localhost` | RisingWave host |
 | `RW_PORT` | `4566` | RisingWave port |
-| `SOLACE_HOST` | `tcp://localhost:55555` | Solace Platform SMF endpoint |
+| `SOLACE_HOST` | `tcp://localhost:55554` | Solace Platform SMF endpoint |
 | `SOLACE_VPN` | `streaming-poc` | Solace message VPN |
 | `SOLACE_USER` | `streaming-user` | Solace client username |
 | `SOLACE_PASSWORD` | `default` | Solace client password |

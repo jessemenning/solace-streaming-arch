@@ -108,7 +108,7 @@ def write_registry(path: Path, mappings: list) -> None:
         "  user: root",
         "",
         "solace:",
-        '  smf_host: "${SOLACE_HOST:-tcp://localhost:55555}"',
+        '  smf_host: "${SOLACE_HOST:-tcp://localhost:55554}"',
         '  vpn: "${SOLACE_VPN:-streaming-poc}"',
         '  username: "${SOLACE_USER:-streaming-user}"',
         '  password: "${SOLACE_PASSWORD:-default}"',
