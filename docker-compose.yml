@@ -110,6 +110,42 @@ services:
       retries: 10
       start_period: 20s
 
+  # ─── Solace+ Try Me (enhanced Try Me tab with history replay) ───────────────
+  tryme:
+    build:
+      context: ./tryme
+      dockerfile: Dockerfile
+    container_name: tryme
+    hostname: tryme
+    networks:
+      - streaming-net
+    ports:
+      - "8091:8091"
+    env_file: ./.env
+    environment:
+      RW_HOST: risingwave
+      RW_PORT: "4566"
+      SOLACE_HOST: tcp://solace:55555
+      SOLACE_VPN: streaming-poc
+      SOLACE_USER: streaming-user
+      SOLACE_PASSWORD: default
+      REGISTRY_PATH: /app/config/topic-mv-registry.yaml
+    volumes:
+      - ./config/topic-mv-registry.yaml:/app/config/topic-mv-registry.yaml:ro
+    depends_on:
+      solace:
+        condition: service_healthy
+      risingwave:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -sf http://localhost:8091/ > /dev/null"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   # ─── Event Portal setup (idempotent — creates domain/schemas/events/apps) ──
   # Runs once: 1) create EP objects  2) generate init.sql  3) apply to RisingWave
   ep-setup:

@@ -161,8 +161,8 @@ if [[ "${SKIP_BUILD}" == "true" ]]; then
   log "Skipping build (--skip-build set)"
   docker-compose up -d
 else
-  log "Building images (fleet-agent, fleet-generator)..."
-  docker-compose build fleet-agent fleet-generator
+  log "Building images (fleet-agent, fleet-generator, tryme)..."
+  docker-compose build fleet-agent fleet-generator tryme
   docker-compose up -d
 fi
 log "docker-compose started. Waiting for services to become healthy..."
@@ -228,6 +228,7 @@ log "=== Demo complete ==="
 
 # ─── Auto-launch Fleet Operations AI UI ──────────────────────────────────────
 wait_for_url "Fleet Operations AI UI" "http://localhost:8090" "" 60
+wait_for_url "Solace+ Try Me" "http://localhost:8091" "" 60
 if command -v xdg-open &>/dev/null; then
   xdg-open "http://localhost:8090" &>/dev/null &
 elif command -v open &>/dev/null; then
@@ -236,6 +237,7 @@ fi
 log ""
 log "  Explore live:"
 log "    http://localhost:8090    (Fleet Operations AI — agentic demo)"
+log "    http://localhost:8091    (Solace+ Try Me — pub/sub with history replay)"
 log "    http://localhost:5691    (RisingWave Dashboard)"
 log "    http://localhost:8180    (Solace Platform admin)"
 log "    psql -h localhost -p 4566 -U root -d dev"
