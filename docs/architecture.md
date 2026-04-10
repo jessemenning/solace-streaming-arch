@@ -73,12 +73,11 @@ Solace Event Portal serves as the **event catalog and schema registry** for this
    - 3 applications (`fleet-generator`, `risingwave-analytics`, `fleet-agent`) with produce/consume relationships wired
    - Reads `SOLACE_CLOUD_TOKEN` from `.env`
 
-2. **`generate_mvs.py`** — queries the EP catalog and regenerates `config/risingwave/init.sql`:
-   - Paginates through all event versions in the domain
+2. **`generate_mvs.py`** — queries the EP catalog and regenerates two files:
+   - `config/risingwave/init.sql` — one `CREATE MATERIALIZED VIEW` per event version; static analytics MVs appended
+   - `config/topic-mv-registry.yaml` — maps Solace topic patterns to RisingWave MVs; read by `solace+` CLI
    - Converts EP delivery descriptor `addressLevels` → SQL `LIKE` patterns (`variable` levels → `%`)
    - Uses the linked schema's `properties` to select only the relevant columns for each MV
-   - Writes one `CREATE MATERIALIZED VIEW` block per event version
-   - Static analytics MVs (aggregations, JOINs, windows) are appended unchanged
 
 3. **Re-apply to RisingWave** after regenerating:
    ```bash

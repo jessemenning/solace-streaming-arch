@@ -10,6 +10,10 @@ __pycache__/
 solace-data/
 redpanda-data/
 
+# Generated artifacts — regenerated on stack startup (run_demo.sh STEP 4)
+config/topic-mv-registry.yaml
+config/risingwave/init.sql
+
 # Environment — never commit live credentials
 .env
 .env.local

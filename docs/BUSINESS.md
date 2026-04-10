@@ -179,6 +179,12 @@ where real-world events and agent reasoning exist in the same architectural plan
 
 ---
 
+## Unified CLI: The Same Address Space Across Time
+
+The `solace+` CLI extends Solace topic addressing with a time dimension. A developer who already knows the topic pattern `fleet/events/*/alerts/high` can use that same pattern to query the last hour of historical alerts from RisingWave, subscribe to live alerts from the broker, or do both in sequence — with a single command and no knowledge of which system stores what. History is replayed as individual Solace-style events before live messages begin, so the handoff is seamless. This collapses two previously separate interfaces (psql for history, SDK for live) into one, removes the need to know which materialized view backs which topic, and lets developers build queries, playbooks, and AI tools that treat the event stream as a single continuous source regardless of whether the data is seconds old or hours old.
+
+---
+
 ## Applicability Beyond Fleet Monitoring
 
 The domain (IoT fleet) is illustrative. The pattern applies wherever:

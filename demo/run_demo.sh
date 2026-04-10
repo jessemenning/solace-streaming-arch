@@ -161,8 +161,8 @@ if [[ "${SKIP_BUILD}" == "true" ]]; then
   log "Skipping build (--skip-build set)"
   docker-compose up -d
 else
-  log "Building images (fleet-agent, fleet-generator)..."
-  docker-compose build fleet-agent fleet-generator
+  log "Building images (fleet-agent, fleet-generator, tryme)..."
+  docker-compose build fleet-agent fleet-generator tryme
   docker-compose up -d
 fi
 log "docker-compose started. Waiting for services to become healthy..."
@@ -186,6 +186,18 @@ bash config/solace/setup.sh localhost
 
 # ─── STEP 4: Initialize RisingWave schema ────────────────────────────────────
 log "=== STEP 4: Initializing RisingWave CDC table and materialized views ==="
+
+# Generate topic-mv-registry.yaml (read by solace+ CLI).
+# Use EP catalog if SOLACE_CLOUD_TOKEN is set; otherwise generate static mappings only.
+SOLACE_CLOUD_TOKEN="${SOLACE_CLOUD_TOKEN:-$(grep -E '^SOLACE_CLOUD_TOKEN=' .env 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' ')}"
+if [[ -n "${SOLACE_CLOUD_TOKEN}" ]]; then
+  log "  Generating topic-mv-registry.yaml from Event Portal catalog..."
+  SOLACE_CLOUD_TOKEN="${SOLACE_CLOUD_TOKEN}" ${PYTHON} generate_mvs.py 2>&1 | grep -E '(Wrote|ERROR|event)' | sed 's/^/  /' || true
+else
+  log "  SOLACE_CLOUD_TOKEN not set — generating static registry only..."
+  ${PYTHON} generate_mvs.py --skip-ep 2>&1 | sed 's/^/  /' || true
+fi
+
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 log "  RisingWave schema initialized."
 
@@ -216,6 +228,7 @@ log "=== Demo complete ==="
 
 # ─── Auto-launch Fleet Operations AI UI ──────────────────────────────────────
 wait_for_url "Fleet Operations AI UI" "http://localhost:8090" "" 60
+wait_for_url "Solace+ Try Me" "http://localhost:8091" "" 60
 if command -v xdg-open &>/dev/null; then
   xdg-open "http://localhost:8090" &>/dev/null &
 elif command -v open &>/dev/null; then
@@ -224,6 +237,7 @@ fi
 log ""
 log "  Explore live:"
 log "    http://localhost:8090    (Fleet Operations AI — agentic demo)"
+log "    http://localhost:8091    (Solace+ Try Me — pub/sub with history replay)"
 log "    http://localhost:5691    (RisingWave Dashboard)"
 log "    http://localhost:8180    (Solace Platform admin)"
 log "    psql -h localhost -p 4566 -U root -d dev"
