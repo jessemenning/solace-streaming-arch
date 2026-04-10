@@ -121,11 +121,45 @@ semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 JSON
 )"
 
-# ── 6. Topic subscription on rw-ingest ───────────────────────────────────────
-log "Adding subscription fleet/> to rw-ingest"
+# ── 6. Topic subscriptions on rw-ingest ──────────────────────────────────────
+# Telemetry and commands only — events go to a separate queue to avoid
+# alert messages being blocked behind high-volume telemetry.
+log "Adding subscriptions fleet/telemetry/> and fleet/commands/> to rw-ingest"
 semp_post "/msgVpns/${VPN}/queues/rw-ingest/subscriptions" "$(cat <<JSON
 {
-  "subscriptionTopic": "fleet/>"
+  "subscriptionTopic": "fleet/telemetry/>"
+}
+JSON
+)"
+semp_post "/msgVpns/${VPN}/queues/rw-ingest/subscriptions" "$(cat <<JSON
+{
+  "subscriptionTopic": "fleet/commands/>"
+}
+JSON
+)"
+
+# ── 6b. Events queue (separate from telemetry to avoid head-of-line blocking) ─
+log "Creating queue: events-ingest"
+semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
+{
+  "queueName": "events-ingest",
+  "ingressEnabled": true,
+  "egressEnabled": true,
+  "accessType": "exclusive",
+  "permission": "consume",
+  "maxMsgSpoolUsage": 100,
+  "maxRedeliveryCount": 3,
+  "deadMsgQueue": "#DEAD_MSG_QUEUE",
+  "maxTtl": 300,
+  "respectTtlEnabled": true
+}
+JSON
+)"
+
+log "Adding subscription fleet/events/> to events-ingest"
+semp_post "/msgVpns/${VPN}/queues/events-ingest/subscriptions" "$(cat <<JSON
+{
+  "subscriptionTopic": "fleet/events/>"
 }
 JSON
 )"
@@ -143,11 +177,16 @@ semp_post "/msgVpns/${VPN}/restDeliveryPoints" "$(cat <<JSON
 JSON
 )"
 
-# ── 8. REST Consumer (points at RisingWave webhook HTTP server on port 4560) ──
-log "Creating REST Consumer: fleet-webhook → risingwave:4560"
-semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers" "$(cat <<JSON
+# ── 8. REST Consumers (multiple for throughput) ──────────────────────────────
+# Each REST consumer = one persistent HTTP connection to RisingWave.
+# Generator publishes ~56 msg/s; each consumer delivers ~14 msg/s (~70ms RTT).
+# 8 consumers = ~112 msg/s — 2× headroom over generator rate, drains spikes fast.
+# The single queue binding below feeds all consumers (Solace round-robins across them).
+log "Creating REST Consumers (1-8): fleet-webhook-{1..8} → risingwave:4560"
+for i in $(seq 1 8); do
+  semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers" "$(cat <<JSON
 {
-  "restConsumerName": "fleet-webhook",
+  "restConsumerName": "fleet-webhook-${i}",
   "remoteHost": "risingwave",
   "remotePort": 4560,
   "tlsEnabled": false,
@@ -155,16 +194,19 @@ semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers" "$(c
 }
 JSON
 )"
+done
 
-# ── 9. Content-Type header on REST Consumer ───────────────────────────────────
+# ── 9. Content-Type header on each REST Consumer ──────────────────────────────
 # requestHeaders endpoint requires SEMP API v2.23 (Solace Platform 9.13+).
 # Falls back gracefully on older images — webhook still works without explicit header.
-log "Setting Content-Type: application/json on fleet-webhook"
-semp_post_optional "Content-Type header" \
-  "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers/fleet-webhook/requestHeaders" \
-  '{"headerName":"Content-Type","headerValue":"application/json"}'
+log "Setting Content-Type: application/json on fleet-webhook-{1..8}"
+for i in $(seq 1 8); do
+  semp_post_optional "Content-Type header on fleet-webhook-${i}" \
+    "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/restConsumers/fleet-webhook-${i}/requestHeaders" \
+    '{"headerName":"Content-Type","headerValue":"application/json"}'
+done
 
-# ── 10. Queue Binding ─────────────────────────────────────────────────────────
+# ── 10. Queue Bindings ────────────────────────────────────────────────────────
 log "Creating queue binding: rw-ingest → /webhook/dev/public/fleet_all_raw"
 semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/queueBindings" "$(cat <<JSON
 {
@@ -174,8 +216,18 @@ semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/queueBindings" "$(c
 JSON
 )"
 
+log "Creating queue binding: events-ingest → /webhook/dev/public/fleet_all_raw"
+semp_post "/msgVpns/${VPN}/restDeliveryPoints/risingwave-rdp/queueBindings" "$(cat <<JSON
+{
+  "queueBindingName": "events-ingest",
+  "postRequestTarget": "/webhook/dev/public/fleet_all_raw"
+}
+JSON
+)"
+
 log "Solace setup complete."
 log "  VPN:   ${VPN}"
 log "  User:  streaming-user / default"
-log "  Queue: rw-ingest  →  fleet/>"
+log "  Queue: rw-ingest     →  fleet/telemetry/> + fleet/commands/>"
+log "  Queue: events-ingest →  fleet/events/>"
 log "  RDP:   risingwave-rdp → risingwave:4560/webhook/dev/public/fleet_all_raw"

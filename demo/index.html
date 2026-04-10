@@ -500,7 +500,7 @@
     font-weight: 600;
   }
   .arch-solace   { background: rgba(0,200,149,0.15); color: var(--classic-green); }
-  .arch-redpanda { background: rgba(252,168,41,0.12); color: var(--orange); }
+
   .arch-rising   { background: rgba(194,247,255,0.1); color: var(--sky-blue); }
   .arch-arrow    { color: rgba(255,255,255,0.25); }
   .arch-label    { color: var(--text-dim); font-size: 9px; }
@@ -519,7 +519,7 @@
     <div class="logo-mark">S</div>
     <div class="header-titles">
       <h1>Fleet Operations AI</h1>
-      <p>Agentic use case · Solace → Redpanda → RisingWave</p>
+      <p>Agentic use case · Solace Platform → RisingWave</p>
     </div>
     <div class="header-right">
       <div class="live-badge" id="liveBadge">
@@ -554,7 +554,7 @@
     <div class="messages" id="messages">
       <div class="welcome" id="welcome">
         <h2>Ask me anything about the fleet</h2>
-        <p>I have real-time access to streaming materialized views — each tool call queries pre-computed state from the live Solace → Redpanda → RisingWave pipeline.</p>
+        <p>I have real-time access to streaming materialized views — each tool call queries pre-computed state from the live Solace Platform → RisingWave pipeline.</p>
       </div>
     </div>
 
@@ -600,8 +600,6 @@
       <div class="arch-flow">
         <span class="arch-label">Data flow:</span>
         <span class="arch-node arch-solace">Solace Platform</span>
-        <span class="arch-arrow">→</span>
-        <span class="arch-node arch-redpanda">Redpanda</span>
         <span class="arch-arrow">→</span>
         <span class="arch-node arch-rising">RisingWave</span>
         <span class="arch-arrow">→</span>

@@ -19,6 +19,7 @@ Usage:
 import argparse
 import json
 import math
+import os
 import random
 import signal
 import sys
@@ -41,8 +42,7 @@ BOSTON_LAT_MIN, BOSTON_LAT_MAX = 42.22, 42.48
 BOSTON_LON_MIN, BOSTON_LON_MAX = -71.18, -70.92
 
 # Telemetry publish intervals (seconds)
-TELEMETRY_INTERVAL = 2.0   # speed, fuel, temp, etc.
-LOCATION_INTERVAL  = 5.0   # lat/lng update
+TELEMETRY_INTERVAL = float(os.environ.get("TELEMETRY_INTERVAL", "2.0"))  # seconds between combined telemetry messages
 ALERT_MIN_INTERVAL = 8.0   # minimum gap between alerts per vehicle
 ALERT_PROBABILITY  = 0.06  # chance of alert each alert-tick
 
@@ -132,6 +132,22 @@ class Vehicle:
             "solace_topic": topic,
         }
 
+    def telemetry_all_payload(self) -> dict:
+        """Build a single combined telemetry message with all metrics."""
+        topic = f"fleet/telemetry/{self.vehicle_id}/metrics"
+        return {
+            "vehicle_id":      self.vehicle_id,
+            "speed":           round(self.speed, 3),
+            "fuel_level":      round(self.fuel_pct, 3),
+            "engine_temp":     round(self.engine_temp, 3),
+            "tire_pressure":   round(self.tire_psi, 3),
+            "battery_voltage": round(self.battery_v, 3),
+            "latitude":        round(self.lat, 6),
+            "longitude":       round(self.lon, 6),
+            "recorded_at":     datetime.now(timezone.utc).isoformat(),
+            "solace_topic":    topic,
+        }
+
     def alert_payload(self, alert_type: str, severity: str) -> dict:
         """Build an alert event payload."""
         alert_meta = ALERT_TYPES[alert_type]
@@ -204,7 +220,6 @@ def run_simulation(
     publisher: FleetPublisher,
     vehicles: list[Vehicle],
 ) -> None:
-    telemetry_metrics = ["speed", "fuel_level", "engine_temp", "tire_pressure", "battery_voltage"]
     tick = 0
     print(f"[generator] Simulating {len(vehicles)} vehicles. Ctrl-C to stop.")
 
@@ -214,24 +229,9 @@ def run_simulation(
         for v in vehicles:
             v.step(TELEMETRY_INTERVAL)
 
-            # Publish telemetry for every metric every tick
-            for metric in telemetry_metrics:
-                payload = v.telemetry_payload(metric)
-                publisher.publish(payload["solace_topic"], payload)
-
-            # Publish location update every 5 s (every ~2–3 ticks)
-            if tick % max(1, int(LOCATION_INTERVAL / TELEMETRY_INTERVAL)) == 0:
-                loc_payload = {
-                    "vehicle_id":   v.vehicle_id,
-                    "metric_type":  "location",
-                    "value":        v.speed,
-                    "unit":         "mph",
-                    "latitude":     round(v.lat, 6),
-                    "longitude":    round(v.lon, 6),
-                    "recorded_at":  datetime.now(timezone.utc).isoformat(),
-                    "solace_topic": f"fleet/telemetry/{v.vehicle_id}/metrics/location",
-                }
-                publisher.publish(loc_payload["solace_topic"], loc_payload)
+            # Publish one combined message per vehicle with all metrics
+            payload = v.telemetry_all_payload()
+            publisher.publish(payload["solace_topic"], payload)
 
             # Random alert generation
             if now - v.last_alert > ALERT_MIN_INTERVAL and random.random() < ALERT_PROBABILITY:

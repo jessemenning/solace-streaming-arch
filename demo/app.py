@@ -4,7 +4,7 @@ Fleet Operations AI — Agentic Demo
 Demonstrates: grounding LLM reasoning in real-time streaming data
 
 The AI assistant uses RisingWave materialized views as tools. Each view
-is continuously updated via the Solace → Redpanda → RisingWave pipeline.
+is continuously updated via the Solace Platform → RisingWave pipeline.
 The agent never processes raw events — it queries pre-aggregated state.
 
 Usage:
@@ -81,11 +81,9 @@ MOCK = {
     ],
     "alerts_with_context": [
         {"vehicle_id": "vehicle_005", "event_type": "high_engine_temp", "severity": "high", "description": "Engine temp 240°F",
-         "alert_time": "2024-01-15T14:32:11Z", "metric_type": "engine_temp", "metric_value": 238.5, "unit": "°F", "time_before_alert": "00:01:45"},
-        {"vehicle_id": "vehicle_005", "event_type": "high_engine_temp", "severity": "high", "description": "Engine temp 240°F",
-         "alert_time": "2024-01-15T14:32:11Z", "metric_type": "speed", "metric_value": 89.2, "unit": "mph", "time_before_alert": "00:00:30"},
+         "alert_time": "2024-01-15T14:32:11Z", "speed": 89.2, "fuel_level": 62.1, "engine_temp": 238.5, "tire_pressure": 32.0, "battery_voltage": 13.1, "time_before_alert": "00:01:45"},
         {"vehicle_id": "vehicle_012", "event_type": "tire_pressure_warning", "severity": "high", "description": "Low tire pressure",
-         "alert_time": "2024-01-15T14:31:55Z", "metric_type": "tire_pressure", "metric_value": 26.1, "unit": "PSI", "time_before_alert": "00:02:00"},
+         "alert_time": "2024-01-15T14:31:55Z", "speed": 48.3, "fuel_level": 71.4, "engine_temp": 198.2, "tire_pressure": 26.1, "battery_voltage": 12.8, "time_before_alert": "00:02:00"},
     ],
     "vehicles_in_region_boston": [
         {"vehicle_id": "vehicle_003", "lat": 42.3601, "lon": -71.0589, "speed_mph": 28.4, "recorded_at": "2024-01-15T14:32:08Z"},
@@ -139,7 +137,9 @@ def run_tool(name: str, args: dict) -> tuple[list[dict], bool]:
         ),
         "get_alerts_with_context": lambda a: rw_query(
             "SELECT vehicle_id, event_type, severity, description, alert_time, "
-            "metric_type, ROUND(metric_value::numeric,2) AS metric_value, unit, time_before_alert "
+            "ROUND(speed::numeric,1) AS speed, ROUND(fuel_level::numeric,1) AS fuel_level, "
+            "ROUND(engine_temp::numeric,1) AS engine_temp, ROUND(tire_pressure::numeric,1) AS tire_pressure, "
+            "ROUND(battery_voltage::numeric,2) AS battery_voltage, time_before_alert "
             "FROM alerts_with_context ORDER BY alert_time DESC LIMIT %s",
             params=(min(a.get("limit", 10), 15),)
         ),
@@ -264,9 +264,11 @@ TOOLS = [
     },
 ]
 
-SYSTEM_PROMPT = """You are the Fleet Operations AI for a real-time vehicle monitoring system.
+NUM_VEHICLES = int(os.environ.get("NUM_VEHICLES", "10"))
 
-You have access to LIVE data through streaming materialized views. Each tool query returns data that is continuously updated from 20 IoT vehicles publishing telemetry and alerts via a Solace → Redpanda → RisingWave pipeline.
+SYSTEM_PROMPT = f"""You are the Fleet Operations AI for a real-time vehicle monitoring system.
+
+You have access to LIVE data through streaming materialized views. Each tool query returns data that is continuously updated from {NUM_VEHICLES} IoT vehicles publishing telemetry and alerts via a Solace Platform → RisingWave pipeline (no intermediary broker or connector code required).
 
 The key insight behind this architecture: instead of subscribing to raw event topics, you query pre-computed views. Aggregations like 5-minute speed averages, stream-stream joins for correlated context, and spatial geofence queries are impossible with pub/sub alone — they're expressed here as SQL and updated in real time.
 
@@ -298,7 +300,7 @@ async def fleet_stats():
         "high":      stats.get("high",   {}).get("alert_count", 0),
         "medium":    stats.get("medium", {}).get("alert_count", 0),
         "low":       stats.get("low",    {}).get("alert_count", 0),
-        "vehicles":  20,
+        "vehicles":  NUM_VEHICLES,
         "live":      is_live,
     }
 

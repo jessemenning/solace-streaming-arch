@@ -30,7 +30,7 @@ EP_BASE = "https://api.solace.cloud/api/v2/architecture"
 # (order matches the CREATE SOURCE declaration in STATIC_SOURCE below)
 SOURCE_COLUMNS_ORDERED = [
     "vehicle_id",
-    "metric_type", "value", "unit",
+    "speed", "fuel_level", "engine_temp", "tire_pressure", "battery_voltage",
     "latitude", "longitude", "recorded_at",
     "event_type", "severity", "description", "payload", "occurred_at",
     "command_type", "parameters", "issued_at", "issued_by",
@@ -46,8 +46,8 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 
 STATIC_REGISTRY_MAPPINGS = [
     {
-        "pattern": "fleet/telemetry/*/metrics/speed",
-        "mv": "vehicle_speeds",
+        "pattern": "fleet/telemetry/*/metrics",
+        "mv": "fleet_telemetry_raw",
         "time_column": "recorded_at",
         "aggregates": {"window_5min": "vehicle_speed_5min_avg"},
     },
@@ -66,27 +66,6 @@ STATIC_REGISTRY_MAPPINGS = [
         "pattern": "fleet/events/*/alerts/low",
         "mv": "low_severity_alerts",
         "time_column": "occurred_at",
-    },
-    {
-        "pattern": "fleet/telemetry/*/metrics/location",
-        "mv": "vehicle_last_known_position",
-        "time_column": "recorded_at",
-        "spatial": {"boston": "vehicles_in_region_boston"},
-    },
-    {
-        "pattern": "fleet/telemetry/*/metrics/fuel_level",
-        "mv": "vehicle_fuel_levels",
-        "time_column": "recorded_at",
-    },
-    {
-        "pattern": "fleet/telemetry/*/metrics/engine_temp",
-        "mv": "high_engine_temp_vehicles",
-        "time_column": "recorded_at",
-    },
-    {
-        "pattern": "fleet/telemetry/*",
-        "mv": "fleet_telemetry_raw",
-        "time_column": "recorded_at",
     },
     {
         "pattern": "fleet/events/*",
@@ -282,14 +261,16 @@ STATIC_BRANCH_MVS = """\
 
 CREATE MATERIALIZED VIEW fleet_telemetry_raw AS
 SELECT
-    (data->>'vehicle_id')   ::VARCHAR          AS vehicle_id,
-    (data->>'metric_type')  ::VARCHAR          AS metric_type,
-    (data->>'value')        ::DOUBLE PRECISION AS value,
-    (data->>'unit')         ::VARCHAR          AS unit,
-    (data->>'latitude')     ::DOUBLE PRECISION AS latitude,
-    (data->>'longitude')    ::DOUBLE PRECISION AS longitude,
-    (data->>'recorded_at')  ::TIMESTAMPTZ      AS recorded_at,
-    (data->>'solace_topic') ::VARCHAR          AS solace_topic
+    (data->>'vehicle_id')       ::VARCHAR          AS vehicle_id,
+    (data->>'speed')            ::DOUBLE PRECISION AS speed,
+    (data->>'fuel_level')       ::DOUBLE PRECISION AS fuel_level,
+    (data->>'engine_temp')      ::DOUBLE PRECISION AS engine_temp,
+    (data->>'tire_pressure')    ::DOUBLE PRECISION AS tire_pressure,
+    (data->>'battery_voltage')  ::DOUBLE PRECISION AS battery_voltage,
+    (data->>'latitude')         ::DOUBLE PRECISION AS latitude,
+    (data->>'longitude')        ::DOUBLE PRECISION AS longitude,
+    (data->>'recorded_at')      ::TIMESTAMPTZ      AS recorded_at,
+    (data->>'solace_topic')     ::VARCHAR          AS solace_topic
 FROM   fleet_all_raw
 WHERE  data->>'solace_topic' LIKE 'fleet/telemetry/%';
 
@@ -340,9 +321,8 @@ WHERE  severity = 'low';
 
 -- ─── 3. Real-time speed readings ─────────────────────────────────────────────
 CREATE MATERIALIZED VIEW vehicle_speeds AS
-SELECT vehicle_id, value AS speed_mph, latitude, longitude, recorded_at, solace_topic
-FROM   fleet_telemetry_raw
-WHERE  metric_type = 'speed';
+SELECT vehicle_id, speed AS speed_mph, latitude, longitude, recorded_at, solace_topic
+FROM   fleet_telemetry_raw;
 
 -- ─── 4. 5-minute tumbling window — speed averages per vehicle ────────────────
 CREATE MATERIALIZED VIEW vehicle_speed_5min_avg AS
@@ -350,12 +330,11 @@ SELECT
     vehicle_id,
     window_start,
     window_end,
-    AVG(value)  AS avg_speed_mph,
-    MAX(value)  AS max_speed_mph,
-    MIN(value)  AS min_speed_mph,
+    AVG(speed)  AS avg_speed_mph,
+    MAX(speed)  AS max_speed_mph,
+    MIN(speed)  AS min_speed_mph,
     COUNT(*)    AS sample_count
 FROM TUMBLE(fleet_telemetry_raw, recorded_at, INTERVAL '5 MINUTES')
-WHERE metric_type = 'speed'
 GROUP BY vehicle_id, window_start, window_end;
 
 -- ─── 5. Fleet-wide alert summary — rolling 1-hour window ─────────────────────
@@ -370,16 +349,14 @@ GROUP BY severity;
 
 -- ─── 6. Per-vehicle fuel levels ──────────────────────────────────────────────
 CREATE MATERIALIZED VIEW vehicle_fuel_levels AS
-SELECT vehicle_id, value AS fuel_pct, recorded_at
-FROM   fleet_telemetry_raw
-WHERE  metric_type = 'fuel_level';
+SELECT vehicle_id, fuel_level AS fuel_pct, recorded_at
+FROM   fleet_telemetry_raw;
 
 -- ─── 7. High engine temperature alerts ───────────────────────────────────────
 CREATE MATERIALIZED VIEW high_engine_temp_vehicles AS
-SELECT vehicle_id, value AS engine_temp_f, recorded_at
+SELECT vehicle_id, engine_temp AS engine_temp_f, recorded_at
 FROM   fleet_telemetry_raw
-WHERE  metric_type = 'engine_temp'
-  AND  value > 220;
+WHERE  engine_temp > 220;
 
 -- ─── 8. Alerts with correlated telemetry (stream-stream join) ────────────────
 CREATE MATERIALIZED VIEW alerts_with_context AS
@@ -389,9 +366,11 @@ SELECT
     e.severity,
     e.description,
     e.occurred_at                    AS alert_time,
-    t.metric_type,
-    t.value                          AS metric_value,
-    t.unit,
+    t.speed,
+    t.fuel_level,
+    t.engine_temp,
+    t.tire_pressure,
+    t.battery_voltage,
     t.recorded_at                    AS metric_time,
     e.occurred_at - t.recorded_at    AS time_before_alert
 FROM fleet_events_raw    e
@@ -402,17 +381,15 @@ JOIN fleet_telemetry_raw t
 
 -- ─── 9. Geofence — vehicles in Boston metro bounding box ─────────────────────
 CREATE MATERIALIZED VIEW vehicles_in_region_boston AS
-SELECT vehicle_id, latitude, longitude, value AS speed_mph, recorded_at
+SELECT vehicle_id, latitude, longitude, speed AS speed_mph, recorded_at
 FROM   fleet_telemetry_raw
-WHERE  metric_type = 'speed'
-  AND  latitude  BETWEEN 42.2 AND 42.5
+WHERE  latitude  BETWEEN 42.2 AND 42.5
   AND  longitude BETWEEN -71.2 AND -70.9;
 
 -- ─── 10. Per-vehicle latest position ─────────────────────────────────────────
 CREATE MATERIALIZED VIEW vehicle_last_known_position AS
-SELECT vehicle_id, latitude, longitude, value AS speed_mph, recorded_at
-FROM   fleet_telemetry_raw
-WHERE  metric_type = 'speed';
+SELECT vehicle_id, latitude, longitude, speed AS speed_mph, recorded_at
+FROM   fleet_telemetry_raw;
 
 -- ─── 11. 1-hour event count per vehicle ──────────────────────────────────────
 CREATE MATERIALIZED VIEW vehicle_event_counts_1h AS
@@ -444,7 +421,8 @@ BRANCH_MV_NAMES = ["fleet_telemetry_raw", "fleet_events_raw", "fleet_commands_ra
 # Columns available in each routing MV (used to filter EP-generated MV SELECTs)
 ROUTING_MV_COLUMNS: dict[str, set] = {
     "fleet_telemetry_raw": {
-        "vehicle_id", "metric_type", "value", "unit",
+        "vehicle_id",
+        "speed", "fuel_level", "engine_temp", "tire_pressure", "battery_voltage",
         "latitude", "longitude", "recorded_at", "solace_topic",
     },
     "fleet_events_raw": {
@@ -480,17 +458,56 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true",
                         help="Print generated SQL to stdout instead of writing the file")
     parser.add_argument("--skip-ep", action="store_true",
-                        help="Write static registry only (no EP token required); skips init.sql")
+                        help="Generate init.sql and registry from static schema only (no EP token required)")
     args = parser.parse_args()
 
     load_env(SCRIPT_DIR / ".env")
 
-    # ── Skip-EP mode: write static registry without hitting Event Portal ──────
+    # ── Skip-EP mode: write static-only init.sql and registry ─────────────────
     if args.skip_ep:
+        print("WARNING: --skip-ep mode — generating init.sql without Event Portal catalog.", flush=True)
+        print("WARNING: EP-generated MVs will not be included. Set SOLACE_CLOUD_TOKEN and re-run for full schema.", flush=True)
+
+        # Build DROP section for static objects only (no EP-generated MV names)
+        drop_lines: list[str] = []
+        for n in STATIC_ANALYTICS_MV_NAMES:
+            drop_lines.append(f"DROP MATERIALIZED VIEW IF EXISTS {n:<36} CASCADE;")
+        for n in BRANCH_MV_NAMES:
+            drop_lines.append(f"DROP MATERIALIZED VIEW IF EXISTS {n:<36} CASCADE;")
+        drop_lines += [
+            "DROP TABLE  IF EXISTS fleet_all_raw             CASCADE;",
+        ]
+        drop_section = (
+            "-- ── Tear down previous objects (safe to re-run) "
+            "──────────────────────────────\n"
+            + "\n".join(drop_lines)
+        )
+        ep_section = (
+            "-- =========================================================================\n"
+            "-- EP-GENERATED MATERIALIZED VIEWS — skipped (--skip-ep or EP unavailable)\n"
+            "-- Re-run without --skip-ep to include Event Portal catalog objects.\n"
+            "-- =========================================================================\n"
+        )
+        sql = "\n\n\n".join([
+            STATIC_HEADER,
+            drop_section,
+            STATIC_SOURCE,
+            STATIC_BRANCH_MVS,
+            ep_section,
+            STATIC_ANALYTICS_MVS,
+        ]) + "\n"
+
+        if args.dry_run:
+            print(sql)
+        else:
+            out_path = SCRIPT_DIR / "config" / "risingwave" / "init.sql"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(sql)
+            print(f"Wrote {out_path}  (static schema — no EP-generated views)")
+
         reg_path = SCRIPT_DIR / "config" / "topic-mv-registry.yaml"
         write_registry(reg_path, STATIC_REGISTRY_MAPPINGS)
         print(f"Wrote {reg_path}  (static mappings only — no EP-generated entries)")
-        print("To include EP-generated MVs: set SOLACE_CLOUD_TOKEN and re-run without --skip-ep")
         return
 
     token = os.environ.get("SOLACE_CLOUD_TOKEN", "")
@@ -609,6 +626,7 @@ def main() -> None:
         return
 
     out_path = SCRIPT_DIR / "config" / "risingwave" / "init.sql"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(sql)
     print(f"\nWrote {out_path}")
     print(f"  {len(ep_mv_names)} EP-generated MVs:")

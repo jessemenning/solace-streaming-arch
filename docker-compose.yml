@@ -78,6 +78,8 @@ services:
       SOLACE_USER: streaming-user
       SOLACE_PASSWORD: default
       BURST: "${BURST:-false}"
+      NUM_VEHICLES: "${NUM_VEHICLES:-10}"
+      TELEMETRY_INTERVAL: "${TELEMETRY_INTERVAL:-5.0}"
     depends_on:
       solace:
         condition: service_healthy

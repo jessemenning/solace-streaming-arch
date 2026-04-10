@@ -9,6 +9,7 @@ SOLACE_VPN="${SOLACE_VPN:-streaming-poc}"
 SOLACE_USER="${SOLACE_USER:-streaming-user}"
 SOLACE_PASSWORD="${SOLACE_PASSWORD:-default}"
 BURST="${BURST:-false}"
+NUM_VEHICLES="${NUM_VEHICLES:-10}"
 
 log() { echo "[generator] $(date '+%H:%M:%S')  $*"; }
 
@@ -28,10 +29,11 @@ log "VPN '${SOLACE_VPN}' is ready."
 BURST_FLAG=""
 [[ "${BURST}" == "true" ]] && BURST_FLAG="--burst"
 
-log "Starting fleet telemetry generator (burst=${BURST})..."
+log "Starting fleet telemetry generator (vehicles=${NUM_VEHICLES}, burst=${BURST})..."
 exec python generator.py \
   --host "${SOLACE_HOST}" \
   --vpn  "${SOLACE_VPN}" \
   --user "${SOLACE_USER}" \
   --password "${SOLACE_PASSWORD}" \
+  --vehicles "${NUM_VEHICLES}" \
   ${BURST_FLAG}

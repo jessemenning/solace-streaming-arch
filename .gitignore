@@ -17,3 +17,6 @@ config/risingwave/init.sql
 # Environment — never commit live credentials
 .env
 .env.local
+docs/streaming-platform-comparison.docx
+docs/streaming-platform-comparison.docx:Zone.Identifier
+docs/trymetab.mhtml
