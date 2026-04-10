@@ -11,12 +11,12 @@ services:
   solace:
     image: solace/solace-pubsub-standard:latest
     hostname: solace
-    container_name: solace
+    container_name: solace-RW
     networks:
       - streaming-net
     ports:
       - "8180:8080"   # SEMP admin REST API (host 8080 already in use → mapped to 8180)
-      - "55555:55555" # SMF (Solace Message Format — native protocol)
+      - "55554:55555" # SMF (Solace Message Format — native protocol)
       - "1883:1883"   # MQTT
       - "8008:8008"   # WebSocket / MQTT over WS
     environment:

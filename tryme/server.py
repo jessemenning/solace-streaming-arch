@@ -49,7 +49,7 @@ except ImportError:
 RW_HOST = os.environ.get("RW_HOST", "localhost")
 RW_PORT = int(os.environ.get("RW_PORT", "4566"))
 
-SOLACE_HOST = os.environ.get("SOLACE_HOST", "tcp://localhost:55555")
+SOLACE_HOST = os.environ.get("SOLACE_HOST", "tcp://localhost:55554")
 SOLACE_VPN = os.environ.get("SOLACE_VPN", "streaming-poc")
 SOLACE_USER = os.environ.get("SOLACE_USER", "streaming-user")
 SOLACE_PASSWORD = os.environ.get("SOLACE_PASSWORD", "default")
