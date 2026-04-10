@@ -73,11 +73,14 @@ ep_post() {
 
 ep_delete() {
   local path="$1"
-  local resp
-  resp=$(curl -s -X DELETE "$EP_BASE$path" \
+  local body http_code
+  body=$(curl -s -w "\n__HTTP_STATUS__%{http_code}" -X DELETE "$EP_BASE$path" \
     -H "Authorization: Bearer $SOLACE_CLOUD_TOKEN")
-  if echo "$resp" | jq -e '.errorId' &>/dev/null; then
-    echo "ERROR from DELETE $path: $(echo "$resp" | jq -r '.message // .')" >&2
+  http_code=$(echo "$body" | grep '^__HTTP_STATUS__' | sed 's/__HTTP_STATUS__//')
+  body=$(echo "$body" | grep -v '^__HTTP_STATUS__')
+  if [[ "$http_code" != 2* ]]; then
+    echo "ERROR: DELETE $path returned HTTP $http_code" >&2
+    echo "  Response: $body" >&2
     exit 1
   fi
 }
@@ -116,12 +119,21 @@ STALE_ID=$(find_by_name "/applicationDomains" "Fleet Operations")
 if [[ -n "$STALE_ID" ]]; then
   echo "  Found existing domain ($STALE_ID) — removing for clean start..."
   # Disable deletion protection first (no-op if already false)
-  curl -s -X PATCH "$EP_BASE/applicationDomains/$STALE_ID" \
+  _PATCH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "$EP_BASE/applicationDomains/$STALE_ID" \
     -H "Authorization: Bearer $SOLACE_CLOUD_TOKEN" \
     -H "Content-Type: application/json" \
-    -d '{"name": "Fleet Operations", "deletionProtected": false}' > /dev/null
+    -d '{"name": "Fleet Operations", "deletionProtected": false}')
+  if [[ "$_PATCH_HTTP" != 2* ]]; then
+    echo "WARNING: PATCH to disable deletion protection returned HTTP $_PATCH_HTTP — proceeding anyway" >&2
+  fi
   ep_delete "/applicationDomains/$STALE_ID"
-  echo "  Removed. All schemas, events, and applications deleted."
+  # Verify the domain is actually gone
+  _VERIFY_ID=$(find_by_name "/applicationDomains" "Fleet Operations")
+  if [[ -n "$_VERIFY_ID" ]]; then
+    echo "ERROR: Domain still exists after delete (ID: $_VERIFY_ID). Cannot proceed with clean start." >&2
+    exit 1
+  fi
+  echo "  Removed and verified. All schemas, events, and applications deleted."
 fi
 
 # ── 1. Application Domain ─────────────────────────────────────────────────────
@@ -216,9 +228,7 @@ ensure_event() {
 }
 
 EV_TELEMETRY_ID=$(ensure_event "vehicle-telemetry")
-EV_ALERT_LOW_ID=$(ensure_event "vehicle-alert-low")
-EV_ALERT_MED_ID=$(ensure_event "vehicle-alert-medium")
-EV_ALERT_HIGH_ID=$(ensure_event "vehicle-alert-high")
+EV_ALERT_ID=$(ensure_event "vehicle-alert")
 EV_COMMAND_ID=$(ensure_event "vehicle-command")
 
 # ── 5. Event Versions ─────────────────────────────────────────────────────────
@@ -251,44 +261,31 @@ if [[ -z "$EVV_TELEMETRY_ID" ]]; then
     }')" | jq -r '.data.id')
 fi
 
-ensure_alert_evv() {
-  local event_id="$1"
-  local description="$2"
-  local severity="$3"
-  local id
-  id=$(find_version "/eventVersions" "eventIds=$event_id" "1.0.0")
-  if [[ -z "$id" ]]; then
-    id=$(ep_post "/eventVersions" "$(jq -n \
-      --arg eid "$event_id" \
-      --arg desc "$description" \
-      --arg svid "$SV_ALERT_ID" \
-      --arg sev "$severity" \
-      '{
-        eventId: $eid,
-        version: "1.0.0",
-        description: $desc,
-        schemaVersionId: $svid,
-        deliveryDescriptor: {
-          brokerType: "solace",
-          address: {
-            addressType: "topic",
-            addressLevels: [
-              {name:"fleet",      addressLevelType:"literal"},
-              {name:"events",     addressLevelType:"literal"},
-              {name:"vehicle_id", addressLevelType:"variable"},
-              {name:"alerts",     addressLevelType:"literal"},
-              {name:$sev,         addressLevelType:"literal"}
-            ]
-          }
+EVV_ALERT_ID=$(find_version "/eventVersions" "eventIds=$EV_ALERT_ID" "1.0.0")
+if [[ -z "$EVV_ALERT_ID" ]]; then
+  EVV_ALERT_ID=$(ep_post "/eventVersions" "$(jq -n \
+    --arg eid "$EV_ALERT_ID" \
+    --arg svid "$SV_ALERT_ID" \
+    '{
+      eventId: $eid,
+      version: "1.0.0",
+      description: "Alert event — severity (low/medium/high) encoded as the final topic level",
+      schemaVersionId: $svid,
+      deliveryDescriptor: {
+        brokerType: "solace",
+        address: {
+          addressType: "topic",
+          addressLevels: [
+            {name:"fleet",      addressLevelType:"literal"},
+            {name:"events",     addressLevelType:"literal"},
+            {name:"vehicle_id", addressLevelType:"variable"},
+            {name:"alerts",     addressLevelType:"literal"},
+            {name:"severity",   addressLevelType:"variable"}
+          ]
         }
-      }')" | jq -r '.data.id')
-  fi
-  echo "$id"
-}
-
-EVV_ALERT_LOW_ID=$(ensure_alert_evv    "$EV_ALERT_LOW_ID"  "Low-severity alert — informational threshold exceeded"      "low")
-EVV_ALERT_MED_ID=$(ensure_alert_evv    "$EV_ALERT_MED_ID"  "Medium-severity alert — operator attention recommended"     "medium")
-EVV_ALERT_HIGH_ID=$(ensure_alert_evv   "$EV_ALERT_HIGH_ID" "High-severity alert — immediate operator action required"   "high")
+      }
+    }')" | jq -r '.data.id')
+fi
 
 EVV_COMMAND_ID=$(find_version "/eventVersions" "eventIds=$EV_COMMAND_ID" "1.0.0")
 if [[ -z "$EVV_COMMAND_ID" ]]; then
@@ -338,6 +335,7 @@ ensure_application() {
 APP_GENERATOR_ID=$(ensure_application "fleet-generator")
 APP_RISINGWAVE_ID=$(ensure_application "risingwave-analytics")
 APP_AGENT_ID=$(ensure_application "fleet-agent")
+APP_TRYME_ID=$(ensure_application "solace-plus-tryme")
 
 # ── 7. Application Versions ───────────────────────────────────────────────────
 
@@ -345,8 +343,8 @@ echo "Ensuring application versions..."
 
 ALL_CONSUMER_EVV_IDS=$(jq -n \
   --arg a "$EVV_TELEMETRY_ID" \
-  --arg b "$EVV_ALERT_LOW_ID" --arg c "$EVV_ALERT_MED_ID" --arg d "$EVV_ALERT_HIGH_ID" \
-  '[$a,$b,$c,$d]')
+  --arg b "$EVV_ALERT_ID" \
+  '[$a,$b]')
 
 ensure_app_version() {
   local app_id="$1"
@@ -393,13 +391,23 @@ ensure_app_version "$APP_AGENT_ID" "$(jq -n \
     declaredProducedEventVersionIds: [$cmdEvv]
   }')"
 
+ensure_app_version "$APP_TRYME_ID" "$(jq -n \
+  --arg appId "$APP_TRYME_ID" \
+  --arg cmdEvv "$EVV_COMMAND_ID" \
+  --argjson consumed "$ALL_CONSUMER_EVV_IDS" \
+  '{
+    applicationId: $appId,
+    version: "1.0.0",
+    description: "Solace+ Try Me — interactive pub/sub explorer; replays RisingWave history then streams live events from Solace Platform; can publish commands to vehicles",
+    declaredConsumedEventVersionIds: $consumed,
+    declaredProducedEventVersionIds: [$cmdEvv]
+  }')"
+
 echo ""
 echo "Fleet Operations domain ready."
 echo "  Domain ID : $DOMAIN_ID"
 echo ""
 echo "Event version IDs (used by generate_mvs.py):"
-echo "  telemetry      : $EVV_TELEMETRY_ID"
-echo "  alert_low      : $EVV_ALERT_LOW_ID"
-echo "  alert_medium   : $EVV_ALERT_MED_ID"
-echo "  alert_high     : $EVV_ALERT_HIGH_ID"
-echo "  command        : $EVV_COMMAND_ID"
+echo "  telemetry : $EVV_TELEMETRY_ID"
+echo "  alert     : $EVV_ALERT_ID"
+echo "  command   : $EVV_COMMAND_ID"
