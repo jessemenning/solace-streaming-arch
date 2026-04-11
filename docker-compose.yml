@@ -53,6 +53,8 @@ services:
       - "4566:4566" # Frontend SQL (Postgres wire protocol)
       - "4560:4560" # HTTP API — webhook ingestion endpoint
       - "5691:5691" # Dashboard / metadata
+    volumes:
+      - ~/risingwave/target/debug/risingwave-stripped:/risingwave/bin/risingwave
     command: playground
     healthcheck:
       test:
