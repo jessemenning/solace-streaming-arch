@@ -231,33 +231,43 @@ STATIC_HEADER = """\
 -- Re-generate: python3 generate_mvs.py
 -- =============================================================================
 -- Architecture:
---   Solace Platform RDP HTTP POSTs ALL fleet messages to one webhook TABLE
---   (fleet_all_raw, single data JSONB column).  Every message embeds its
---   original Solace topic in the `solace_topic` JSON field.  Three routing MVs
---   extract typed columns per message family; analytics MVs build on those.
+--   A Python proxy subscribes to Solace Platform queues and HTTP POSTs each
+--   message to the RisingWave webhook endpoint.  The proxy injects the Solace
+--   destination topic and sender timestamp as HTTP headers:
+--     x-message-topic      — e.g. fleet/telemetry/vehicle_001/metrics
+--     x-message-timestamp  — ISO 8601 UTC sender timestamp
 --
---   fleet_all_raw (webhook TABLE — Solace RDP HTTP POST → port 4560)
---     ├─ fleet_telemetry_raw  (MV — WHERE data->>'solace_topic' LIKE 'fleet/telemetry/%')
---     ├─ fleet_events_raw     (MV — WHERE data->>'solace_topic' LIKE 'fleet/events/%')
---     ├─ fleet_commands_raw   (MV — WHERE data->>'solace_topic' LIKE 'fleet/commands/%')
+--   RisingWave captures these via INCLUDE header on the webhook TABLE as
+--   _topic (VARCHAR) and _timestamp (VARCHAR) columns.
+--
+--   fleet_all_raw (webhook TABLE — proxy HTTP POST → port 4560)
+--     ├─ fleet_telemetry_raw  (MV — WHERE _topic LIKE 'fleet/telemetry/%')
+--     ├─ fleet_events_raw     (MV — WHERE _topic LIKE 'fleet/events/%')
+--     ├─ fleet_commands_raw   (MV — WHERE _topic LIKE 'fleet/commands/%')
 --     └─ <event-name>         (EP-generated — one per event version)
 -- =============================================================================""".rstrip()
 
 STATIC_SOURCE = """\
 -- ── Unified webhook table — all fleet message types ──────────────────────────
--- Solace RDP HTTP POSTs each message directly to this webhook endpoint.
--- The entire JSON body is stored in the 'data' JSONB column.
+-- The Python proxy HTTP POSTs each message to this webhook endpoint and injects
+-- the Solace topic + sender timestamp as HTTP headers.  INCLUDE header captures
+-- them as first-class VARCHAR columns (_topic, _timestamp).
 -- Endpoint: http://risingwave:4560/webhook/dev/public/fleet_all_raw
 CREATE TABLE fleet_all_raw (
     data JSONB
-) WITH (
+)
+INCLUDE header 'x-message-topic'     VARCHAR AS _topic
+INCLUDE header 'x-message-timestamp' VARCHAR AS _timestamp
+WITH (
     connector = 'webhook'
 );""".rstrip()
 
 STATIC_BRANCH_MVS = """\
 -- ── Branch routing views — extract typed columns from raw JSONB ──────────────
 -- These views are the base sources for all analytics MVs.
--- Each filters by solace_topic prefix and casts JSON fields to typed columns.
+-- Each filters by _topic (from INCLUDE header) and casts JSON fields to typed columns.
+-- The _topic column is aliased as solace_topic so downstream MVs need no changes.
+-- The _timestamp column (Solace sender timestamp) replaces body timestamps.
 
 CREATE MATERIALIZED VIEW fleet_telemetry_raw AS
 SELECT
@@ -269,10 +279,10 @@ SELECT
     (data->>'battery_voltage')  ::DOUBLE PRECISION AS battery_voltage,
     (data->>'latitude')         ::DOUBLE PRECISION AS latitude,
     (data->>'longitude')        ::DOUBLE PRECISION AS longitude,
-    (data->>'recorded_at')      ::TIMESTAMPTZ      AS recorded_at,
-    (data->>'solace_topic')     ::VARCHAR          AS solace_topic
+    _timestamp                  ::TIMESTAMPTZ      AS recorded_at,
+    _topic                                         AS solace_topic
 FROM   fleet_all_raw
-WHERE  data->>'solace_topic' LIKE 'fleet/telemetry/%';
+WHERE  _topic LIKE 'fleet/telemetry/%';
 
 CREATE MATERIALIZED VIEW fleet_events_raw AS
 SELECT
@@ -281,21 +291,21 @@ SELECT
     (data->>'severity')     ::VARCHAR          AS severity,
     (data->>'description')  ::VARCHAR          AS description,
     (data->'payload')                          AS payload,
-    (data->>'occurred_at')  ::TIMESTAMPTZ      AS occurred_at,
-    (data->>'solace_topic') ::VARCHAR          AS solace_topic
+    _timestamp              ::TIMESTAMPTZ      AS occurred_at,
+    _topic                                     AS solace_topic
 FROM   fleet_all_raw
-WHERE  data->>'solace_topic' LIKE 'fleet/events/%';
+WHERE  _topic LIKE 'fleet/events/%';
 
 CREATE MATERIALIZED VIEW fleet_commands_raw AS
 SELECT
     (data->>'vehicle_id')   ::VARCHAR          AS vehicle_id,
     (data->>'command_type') ::VARCHAR          AS command_type,
     (data->'parameters')                       AS parameters,
-    (data->>'issued_at')    ::TIMESTAMPTZ      AS issued_at,
+    _timestamp              ::TIMESTAMPTZ      AS issued_at,
     (data->>'issued_by')    ::VARCHAR          AS issued_by,
-    (data->>'solace_topic') ::VARCHAR          AS solace_topic
+    _topic                                     AS solace_topic
 FROM   fleet_all_raw
-WHERE  data->>'solace_topic' LIKE 'fleet/commands/%';""".rstrip()
+WHERE  _topic LIKE 'fleet/commands/%';""".rstrip()
 
 STATIC_ANALYTICS_MVS = """\
 -- =============================================================================
