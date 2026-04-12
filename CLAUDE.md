@@ -10,92 +10,80 @@ A working POC combining two technologies to demonstrate a true event-streaming a
 
 | Layer | Technology | Role |
 |---|---|---|
-| Real-time pub/sub | Solace Platform | Low-latency fan-out, rich topic hierarchies, SEMP v2 management, REST Delivery Point |
+| Real-time pub/sub | Solace Platform | Low-latency fan-out, rich topic hierarchies, SEMP v2 management |
 | Streaming analytics | RisingWave | Incremental SQL — every materialized view is a "virtual topic" |
 
 Domain: IoT fleet monitoring — configurable number of simulated vehicles (default 10) publishing combined telemetry and alerts.
 
-No Kafka/Redpanda intermediary. A Python proxy subscribes to Solace queues, extracts message
-envelope metadata (topic, sender timestamp), and HTTP POSTs the body to RisingWave's webhook
-endpoint with the metadata injected as HTTP headers. RisingWave's `INCLUDE header` feature
-(from a local fork) captures those headers as first-class table columns.
+No Kafka/Redpanda intermediary. RisingWave connects directly to Solace queues via the
+native Solace source connector (SMF protocol). Message envelope metadata (destination topic,
+sender timestamp) is captured as first-class metadata columns — no proxy or webhook required.
 
 ---
 
 ## Key Architecture Decisions
 
-### Python proxy → RisingWave webhook (with INCLUDE header)
+### Native Solace source connector — direct queue binding via SMF
 
-A Python proxy (`proxy/proxy.py`) replaces the Solace REST Delivery Point (RDP). It
-subscribes to two durable queues via the Solace Python SDK and HTTP POSTs each message
-body to the RisingWave webhook endpoint on port 4560. Unlike the RDP, the proxy injects
-message envelope metadata as HTTP headers:
-- `x-message-topic` — the Solace destination topic (e.g. `fleet/telemetry/vehicle_001/metrics`)
-- `x-message-timestamp` — the sender timestamp as ISO 8601 UTC
+RisingWave connects directly to Solace queues using the native Solace source connector.
+No proxy, webhook, or HTTP intermediary is required. The connector binds to Solace queues
+via the SMF protocol and delivers messages with proper ACK-on-checkpoint semantics.
 
-Two queues prevent head-of-line blocking:
-- `rw-ingest`: subscribed to `fleet/telemetry/>` and `fleet/commands/>` (high volume)
-- `events-ingest`: subscribed to `fleet/events/>` (alerts must not be blocked by telemetry)
+Two Solace SOURCEs bind to separate queues to prevent head-of-line blocking:
+- `fleet_ingest_telemetry` → `rw-ingest` queue (`fleet/telemetry/>` + `fleet/commands/>`)
+- `fleet_ingest_events` → `events-ingest` queue (`fleet/events/>`)
 
-RisingWave's `INCLUDE header` feature captures these headers as first-class VARCHAR columns
-(`_topic`, `_timestamp`). Routing MVs use `WHERE _topic LIKE 'fleet/telemetry/%'` — the
-topic comes from the message envelope, not the payload body.
+Metadata columns capture the Solace destination topic and sender timestamp directly from
+the message envelope:
+- `_rw_solace_destination` (VARCHAR) — the Solace topic (e.g. `fleet/telemetry/vehicle_001/metrics`)
+- `_rw_solace_timestamp` (TIMESTAMPTZ) — the sender timestamp
 
-### `fleet_all_raw` webhook TABLE with INCLUDE header columns
+Routing MVs read from their respective source, filter by `_rw_solace_destination LIKE`,
+and alias the metadata columns for downstream compatibility (`solace_topic`, `recorded_at`,
+`occurred_at`, `issued_at`).
 
-RisingWave has one webhook TABLE (`fleet_all_raw`) with a `data JSONB` column plus two
-`INCLUDE header` columns (`_topic VARCHAR`, `_timestamp VARCHAR`). Three routing MVs
-filter by the `_topic` column (aliased as `solace_topic` for downstream compatibility):
+### Solace SOURCEs and routing MV tree
 
 ```
-fleet_all_raw (webhook TABLE — proxy HTTP POST → port 4560)
-  columns: data JSONB, _topic VARCHAR, _timestamp VARCHAR
-  ├── fleet_telemetry_raw  (MV — WHERE _topic LIKE 'fleet/telemetry/%')
-  ├── fleet_events_raw     (MV — WHERE _topic LIKE 'fleet/events/%')
-  └── fleet_commands_raw   (MV — WHERE _topic LIKE 'fleet/commands/%')
+fleet_ingest_telemetry (Solace SOURCE — rw-ingest queue)
+  columns: data JSONB, _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  ├── fleet_telemetry_raw  (MV — WHERE destination LIKE 'fleet/telemetry/%')
+  └── fleet_commands_raw   (MV — WHERE destination LIKE 'fleet/commands/%')
+
+fleet_ingest_events (Solace SOURCE — events-ingest queue)
+  columns: data JSONB, _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  └── fleet_events_raw     (MV — WHERE destination LIKE 'fleet/events/%')
 ```
 
 Analytics MVs build on the routing MVs. TUMBLE windowing uses `fleet_telemetry_raw` (which
-has typed columns extracted from JSONB plus `_timestamp` cast as `recorded_at`).
+has typed columns extracted from JSONB plus `_rw_solace_timestamp` aliased as `recorded_at`).
 
-### Webhook source
+### Connector acknowledgment modes
 
-`fleet_all_raw` uses `connector = 'webhook'` (TABLE, not SOURCE). The webhook endpoint URL
-is `http://risingwave:4560/webhook/dev/public/fleet_all_raw`. No auth is required.
+The connector supports two ACK modes:
+- `checkpoint` (default): messages are ACKed only after RisingWave checkpoints — exactly-once semantics
+- `immediate`: messages are ACKed upon read — at-least-once, lower latency
+
+This project uses `checkpoint` mode for exactly-once delivery guarantees.
 
 ### Clean payloads — no transport metadata in the message body
 
 The generator publishes clean IoT payloads with no transport metadata (`solace_topic`,
 `recorded_at`, `occurred_at` are **not** embedded in the JSON body). The Solace topic and
-sender timestamp travel via the message envelope and are injected as HTTP headers by the
-proxy. RisingWave captures them via `INCLUDE header` as `_topic` and `_timestamp` columns.
+sender timestamp travel via the message envelope and are captured by the connector as
+metadata columns (`_rw_solace_destination`, `_rw_solace_timestamp`).
 
 This design decouples the generator from RisingWave's routing layer. The generator only
 needs to publish to the correct Solace topic — it has no knowledge of how downstream
 systems route or timestamp messages.
 
-### Custom RisingWave binary — `INCLUDE header` for webhook sources
+### Custom RisingWave binary — Solace connector not yet upstream
 
-**Status: implemented and running.** This project uses a local RisingWave fork on branch
-`feat/webhook-include-header` (`~/risingwave/`) that adds `INCLUDE header` support to webhook
-source tables. The upstream `risingwavelabs/risingwave:latest` image does **not** have this
-feature — the custom binary must be present for the stack to work correctly.
-
-**What it enables:**
-
-```sql
-CREATE TABLE fleet_all_raw (
-    data JSONB
-)
-INCLUDE header 'x-message-topic'     AS _topic     VARCHAR
-INCLUDE header 'x-message-timestamp' AS _timestamp VARCHAR
-WITH (connector = 'webhook');
-```
-
-HTTP request headers become first-class VARCHAR table columns. The proxy injects
-`x-message-topic` (Solace destination topic) and `x-message-timestamp` (sender ISO 8601 UTC)
-on every POST. RisingWave materialises them as `_topic` and `_timestamp` — no embedding in
-the JSON body required.
+**Status: implemented but not merged upstream.** The Solace source connector has not been
+merged to the main RisingWave repository yet. This project uses a local fork on branch
+`feat/solace-source-connector` (`~/risingwave/`). The custom binary must be present for the
+stack to work — the stock `risingwavelabs/risingwave:latest` image does **not** include the
+Solace connector.
 
 **Binary:**
 ```
@@ -120,44 +108,29 @@ docker compose restart risingwave
 psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 ```
 
-**How it works (key code locations in `~/risingwave/`):**
+**Key code locations in `~/risingwave/`:**
 
-- `HeaderColumnInfo` struct in `src/frontend/src/webhook/mod.rs` carries the header name
-  for each INCLUDE column. `acquire_table_info()` scans the table catalog for
-  `AdditionalColumnType::HeaderInner` columns and builds `column_indices` dynamically.
-- `generate_data_chunk()` produces a multi-column DataChunk: JSONB body first, then one
-  `Utf8Array` column per INCLUDE header. Absent or non-UTF8 headers → NULL.
-- In batched (JSONL) mode, header values are replicated across all rows (headers are
-  per-request, not per-line).
-- `WEBHOOK_CONNECTOR` was added to `COMPATIBLE_ADDITIONAL_COLUMNS` in
-  `src/connector/src/parser/additional_columns.rs`.
-- `check_create_table_with_source` INCLUDE guard relaxed via `is_webhook_connector()` on
-  `WithOptions`; webhook INCLUDE columns processed through the existing
-  `handle_addition_columns()` pipeline.
+- Connector source: `src/connector/src/source/solace/`
+- Metadata column registration: `src/connector/src/parser/additional_columns.rs`
+- Metadata extraction: `src/connector/src/source/solace/source/message.rs`
+- Proto definitions: `proto/plan_common.proto` (Solace-specific message types)
 
-**Edge cases:** absent headers → NULL, non-UTF8 header values → NULL (silent), batched mode
-replicates per-request headers across all newline-delimited rows, only VARCHAR/BYTEA column
-types accepted (others fail at DDL time).
+**Available metadata columns:**
 
-**GitHub:** [jessemenning/risingwave-webhook-headers](https://github.com/jessemenning/risingwave-webhook-headers) — private fork, branch `feat/webhook-include-header`.
+| METADATA FROM key | Default column name | Type | Description |
+|---|---|---|---|
+| `destination` | `_rw_solace_destination` | VARCHAR | Solace destination topic |
+| `timestamp` | `_rw_solace_timestamp` | TIMESTAMPTZ | Sender timestamp |
+| `replication_group_message_id` | `_rw_solace_replication_group_message_id` | VARCHAR | Broker-assigned unique ID |
+| `correlation_id` | `_rw_solace_correlation_id` | VARCHAR | Correlation identifier |
+| `sequence_number` | `_rw_solace_sequence_number` | BIGINT | Publisher sequence number |
+| `priority` | `_rw_solace_priority` | INT | Message priority |
+| `redelivered` | `_rw_solace_redelivered` | BOOLEAN | Redelivery flag |
+| `application_message_id` | `_rw_solace_application_message_id` | VARCHAR | App-set message ID |
+| `expiration` | `_rw_solace_expiration` | TIMESTAMPTZ | Message expiration |
+| `reply_to` | `_rw_solace_reply_to` | VARCHAR | Reply-to topic |
 
----
-
-### Future connector path — native Solace connector for RisingWave
-
-A native Rust connector subscribing directly to Solace via the Solace C SDK (solclient)
-through FFI bindings would eliminate the proxy and enable proper Solace ACK on commit:
-
-```sql
-CREATE TABLE fleet_all (
-    data        JSONB,
-    _topic      VARCHAR,
-    _timestamp  TIMESTAMPTZ
-) WITH (connector = 'solace', solace.host = '...', solace.queue = 'rw-ingest');
-```
-
-Effort: 5–9 weeks. No such connector exists in the RisingWave ecosystem — would be a
-genuine open-source contribution.
+**GitHub:** [jessemenning/risingwave](https://github.com/jessemenning/risingwave) — branch `feat/solace-source-connector`.
 
 ---
 
@@ -165,20 +138,16 @@ genuine open-source contribution.
 
 | Path | Purpose |
 |---|---|
-| `docker-compose.yml` | Seven services: solace, risingwave, fleet-generator, solace-proxy, fleet-agent, tryme, ep-setup |
-| `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, queues `rw-ingest` + `events-ingest` (no RDP — proxy binds to queues directly) |
+| `docker-compose.yml` | Six services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup |
+| `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, queues `rw-ingest` + `events-ingest` (RisingWave Solace connector binds to queues directly) |
 | `create_ep_objects.sh` | **Clean-start** EP setup: deletes any existing "Fleet Operations" domain then recreates all schemas, events, and applications; exits 2 (not 1) if EP is unreachable so callers can fall back gracefully |
 | `config/ep-setup/entrypoint.sh` | Container entrypoint for `ep-setup` service; runs `create_ep_objects.sh` and captures exit 2 → graceful fallback to `--skip-ep`; emits end-of-run WARNING if EP was unavailable |
 | `generate_mvs.py` | Queries EP catalog → regenerates `config/risingwave/init.sql` and `config/topic-mv-registry.yaml`; `--skip-ep` writes static-only `init.sql` (no EP token required) |
-| `config/risingwave/init.sql` | Auto-generated by `generate_mvs.py` — DROP + CREATE for all tables and MVs; idempotent — safe to re-run |
+| `config/risingwave/init.sql` | Auto-generated by `generate_mvs.py` — DROP + CREATE for all sources and MVs; idempotent — safe to re-run |
 | `config/topic-mv-registry.yaml` | Auto-generated by `generate_mvs.py` — maps Solace topic patterns to RisingWave MVs; read by `solace+` CLI |
 | `cli/solace_plus.py` | `solace+` CLI — unified real-time + historical query tool; routes topic patterns to RisingWave (history) or Solace Platform SMF (live) |
 | `cli/requirements.txt` | CLI dependencies: `psycopg2-binary`, `solace-pubsubplus`, `click`, `pyyaml`, `tabulate`, `python-dotenv` |
 | `cli/README.md` | Usage guide for `solace+`: commands, flags, install steps, examples |
-| `proxy/proxy.py` | Solace-to-RisingWave webhook proxy; binds to queues, extracts topic + timestamp from message envelope, POSTs body with metadata headers; configurable workers via `PROXY_WORKERS_PER_QUEUE` |
-| `proxy/requirements.txt` | `solace-pubsubplus`, `requests` |
-| `proxy/Dockerfile` | Python 3.11-slim image; copies proxy.py + entrypoint.sh |
-| `proxy/entrypoint.sh` | Polls SEMP until VPN + queues exist, then starts proxy |
 | `generator/generator.py` | Fleet simulator; publishes clean IoT payloads (no transport metadata) via Solace Platform Python SDK; vehicle count and interval configurable via env |
 | `generator/requirements.txt` | `solace-pubsubplus` (SDK package name) |
 | `generator/Dockerfile` | Python 3.11-slim image; copies generator.py + entrypoint.sh |
@@ -219,9 +188,9 @@ fleet/commands/{vehicle_id}/{command_type}
 
 | View | Equivalent Solace subscription | Notes |
 |---|---|---|
-| `fleet_telemetry_raw` | `fleet/telemetry/>` | Routing MV — `WHERE _topic LIKE`; aliases `_topic` as `solace_topic`, `_timestamp` as `recorded_at` |
-| `fleet_events_raw` | `fleet/events/>` | Routing MV — aliases `_timestamp` as `occurred_at` |
-| `fleet_commands_raw` | `fleet/commands/>` | Routing MV — aliases `_timestamp` as `issued_at` |
+| `fleet_telemetry_raw` | `fleet/telemetry/>` | Routing MV on `fleet_ingest_telemetry`; aliases `_rw_solace_destination` → `solace_topic`, `_rw_solace_timestamp` → `recorded_at` |
+| `fleet_events_raw` | `fleet/events/>` | Routing MV on `fleet_ingest_events`; aliases `_rw_solace_timestamp` → `occurred_at` |
+| `fleet_commands_raw` | `fleet/commands/>` | Routing MV on `fleet_ingest_telemetry`; aliases `_rw_solace_timestamp` → `issued_at` |
 | `high_severity_alerts` | `fleet/events/*/alerts/high` | — |
 | `medium_severity_alerts` | `fleet/events/*/alerts/medium` | — |
 | `low_severity_alerts` | `fleet/events/*/alerts/low` | — |
@@ -245,11 +214,11 @@ fleet/commands/{vehicle_id}/{command_type}
 | Solace SMF (SDK) | 55554 | Host port → container 55555 (Native Solace protocol) |
 | Solace MQTT | 1883 | — |
 | RisingWave SQL (psql) | 4566 | Postgres wire protocol |
-| RisingWave webhook | 4560 | HTTP POST from Solace RDP → `fleet_all_raw` table |
+| ~~RisingWave webhook~~ | ~~4560~~ | Removed — native Solace connector replaces webhook ingestion |
 | RisingWave Dashboard | 5691 | — |
 | Fleet Agent UI | 8090 | Agentic demo — FastAPI + Claude + RisingWave tools |
 | Solace+ Try Me | 8091 | Interactive pub/sub UI with history replay from RisingWave |
-| solace-proxy | — | No host port; internal container bridges Solace queues → RisingWave webhook |
+| ~~solace-proxy~~ | — | Removed — native Solace connector replaces proxy |
 | fleet-generator | — | No host port; internal container publishes to Solace on streaming-net |
 
 ---
@@ -381,19 +350,15 @@ solace+ env vars (override defaults via `.env` or export):
 
 ---
 
-## Proxy Notes
+## Solace Connector Notes
 
-- The Python proxy (`proxy/proxy.py`) replaces the Solace REST Delivery Point (RDP)
+- Two Solace SOURCEs bind directly to durable queues via SMF protocol (no proxy)
 - Two queues (both use `permission: "consume"`):
   - `rw-ingest`: `fleet/telemetry/>` + `fleet/commands/>` — high-volume telemetry
   - `events-ingest`: `fleet/events/>` — alerts; separate queue prevents head-of-line blocking by telemetry
-- Proxy binds to both queues via `PersistentMessageReceiver` (Solace Python SDK)
-- Scaling: `PROXY_WORKERS_PER_QUEUE` (default 4) worker threads per queue; for horizontal scaling, set queues to non-exclusive and run multiple proxy containers
-- DLQ handling: on HTTP failure the proxy NAKs with `FAILED` disposition; after `maxRedeliveryCount` (3) failures Solace moves the message to `#DEAD_MSG_QUEUE`
-- Webhook endpoint: `http://risingwave:4560/webhook/dev/public/fleet_all_raw`
-- No auth on RisingWave webhook endpoint (optional — not configured)
-- Queue hardening: `maxRedeliveryCount: 3` moves stuck messages to `#DEAD_MSG_QUEUE` after 3 failed deliveries; `maxTtl: 300` (5 min) + `respectTtlEnabled: true` auto-expires old messages — prevents backlog accumulation if RisingWave is temporarily unavailable
-- Headers injected per request: `x-message-topic` (Solace destination topic), `x-message-timestamp` (sender timestamp as ISO 8601 UTC)
+- ACK mode: `checkpoint` — messages ACKed only after RisingWave checkpoint (exactly-once)
+- Queue hardening: `maxRedeliveryCount: 3` moves stuck messages to `#DEAD_MSG_QUEUE` after 3 failed deliveries; `maxTtl: 300` (5 min) + `respectTtlEnabled: true` auto-expires old messages
+- Metadata from message envelope: `_rw_solace_destination` (topic), `_rw_solace_timestamp` (sender time)
 
 ---
 
@@ -401,17 +366,14 @@ solace+ env vars (override defaults via `.env` or export):
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `fleet_telemetry_raw` returns 0 rows | Proxy not delivering to RisingWave | Check `docker logs solace-proxy`; verify queues exist in SEMP |
-| Proxy not connecting | VPN or queues not yet configured | `proxy/entrypoint.sh` polls SEMP — check `docker logs -f solace-proxy` for wait status |
-| Proxy delivering but `_topic` is NULL | Proxy not sending `x-message-topic` header | Check proxy version; verify `Content-Type` and custom headers in proxy logs |
+| `fleet_telemetry_raw` returns 0 rows | Solace connector not receiving from queue | Check RisingWave dashboard at :5691 for source status; verify queues exist in SEMP |
 | Generator not publishing | VPN not yet configured | `generator/entrypoint.sh` polls SEMP — run `docker logs -f fleet-generator` to see wait status |
 | SEMP calls fail silently | `curl -sf` swallows errors | Use `curl -s` to see error body |
 | `psql: command not found` | Client not installed | `sudo apt-get install -y postgresql-client` |
 | Fleet Agent UI shows "DEMO" tag | RisingWave unreachable or no data | Confirm RisingWave is healthy; UI falls back to mock data automatically |
 | Fleet Agent UI `401 Unauthorized` | Missing or wrong `ANTHROPIC_API_KEY` | Check `.env` at project root; ensure it exists (copy from `.env.template`) |
-| Queue backlog builds up | Proxy workers not keeping up with generator rate | Increase `PROXY_WORKERS_PER_QUEUE` or run additional proxy containers |
-| Proxy errors; queue messages accumulating | RisingWave returning HTTP errors; after `maxRedeliveryCount` (3) failures messages go to `#DEAD_MSG_QUEUE` | Check `docker logs solace-proxy` for HTTP error details; drain queue: `curl -u admin:admin -X PUT "http://localhost:8180/SEMP/v2/action/msgVpns/streaming-poc/queues/rw-ingest/deleteMsgs" -H 'Content-Type: application/json' -d '{}'` |
-| RisingWave loses all tables after restart | `playground` mode has no persistent state | Re-run `psql ... -f config/risingwave/init.sql` after any RisingWave restart |
+| Queue backlog builds up | RisingWave checkpoint interval too slow or connector not keeping up | Check queue depth via SEMP; consider `immediate` ack mode for lower latency |
+| RisingWave loses all sources after restart | `playground` mode has no persistent state | Re-run `psql ... -f config/risingwave/init.sql` after any RisingWave restart |
 | Try Me live events show `_raw` with framing bytes | Solace SMF SDK `get_payload_as_bytes()` includes 5-byte protocol header | Fixed: `tryme/server.py` uses `get_payload_as_string()` first |
 | `ep-setup` container shows "statically defined events" warning | Event Portal unreachable or `SOLACE_CLOUD_TOKEN` not set | Expected — stack runs normally on static schema; set token and restart `ep-setup` to add EP catalog objects |
 | `ep-setup` exits with code 2 | EP connectivity check failed (bad token or network) | Check token validity and network; exit 2 is intentional (graceful fallback, not a fatal error) |

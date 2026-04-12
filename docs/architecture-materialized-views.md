@@ -4,7 +4,7 @@
 
 The core pattern: SQL `WHERE` clauses replace Solace wildcard subscriptions.
 
-All messages arrive at `fleet_all_raw` via the Python proxy (`solace-proxy`), which subscribes to Solace's durable queues and HTTP-POSTs each payload to RisingWave's webhook endpoint. The proxy injects the Solace topic and sender timestamp as HTTP headers (`x-message-topic`, `x-message-timestamp`); RisingWave captures them as first-class VARCHAR columns via `INCLUDE header`. The routing MVs alias `_topic` as `solace_topic` — the original Solace topic address is available for SQL filtering without being embedded in the message body. RisingWave MVs replicate Solace wildcard filtering:
+RisingWave connects directly to Solace queues via the native Solace source connector (SMF protocol). Two SOURCEs bind to separate queues: `fleet_ingest_telemetry` (telemetry + commands) and `fleet_ingest_events` (alerts). The connector captures the Solace destination topic and sender timestamp as metadata columns (`_rw_solace_destination`, `_rw_solace_timestamp`). Routing MVs alias `_rw_solace_destination` as `solace_topic` — the original Solace topic address is available for SQL filtering without being embedded in the message body. RisingWave MVs replicate Solace wildcard filtering:
 
 | Solace subscription | RisingWave equivalent |
 |---|---|
@@ -21,12 +21,13 @@ The `*` → `%` substitution is the direct translation between SMF wildcards and
 Solace Event Portal  (design-time catalog — drives code generation)
   └── generate_mvs.py → config/risingwave/init.sql
         ↓
-fleet_all_raw  (webhook TABLE — receives HTTP POSTs from Python proxy; columns: data JSONB + _topic VARCHAR + _timestamp VARCHAR via INCLUDE header)
+fleet_ingest_telemetry  (Solace SOURCE — rw-ingest queue; columns: data JSONB + metadata)
   ├── fleet_telemetry_raw  (static routing MV — LIKE 'fleet/telemetry/%')
-  ├── fleet_events_raw     (static routing MV — LIKE 'fleet/events/%')
   └── fleet_commands_raw   (static routing MV — LIKE 'fleet/commands/%')
+fleet_ingest_events     (Solace SOURCE — events-ingest queue; columns: data JSONB + metadata)
+  └── fleet_events_raw     (static routing MV — LIKE 'fleet/events/%')
         ↓
-EP-generated MVs (one per event version — read directly from fleet_all_raw):
+EP-generated MVs (one per event version — read from routing MVs):
   ├── vehicle_speed           (LIKE 'fleet/telemetry/%/metrics/speed')
   ├── vehicle_fuel_level      (LIKE 'fleet/telemetry/%/metrics/fuel_level')
   ├── vehicle_engine_temp     (LIKE 'fleet/telemetry/%/metrics/engine_temp')
@@ -42,7 +43,7 @@ Analytics MVs (static — build on routing MVs):
 
 MVs extend beyond topic filtering — windowed aggregations and stream-stream JOINs have no Solace equivalent.
 
-EP-generated MVs and static routing MVs both read from `fleet_all_raw` directly. Routing MVs extract typed columns from JSONB and apply broad LIKE patterns; EP-generated MVs use fine-grained LIKE patterns derived from event delivery descriptors. Analytics MVs above them see ordinary typed columns and are unaffected by the JSONB ingest format.
+Routing MVs read from their respective Solace SOURCE, extract typed columns from JSONB, and apply broad LIKE patterns. EP-generated MVs read from the routing MVs and use fine-grained LIKE patterns derived from event delivery descriptors. Analytics MVs above them see ordinary typed columns and are unaffected by the JSONB ingest format.
 
 ---
 

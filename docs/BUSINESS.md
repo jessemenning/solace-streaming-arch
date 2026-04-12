@@ -23,10 +23,7 @@ IoT devices / applications
         │  publish events
         ▼
   Solace Platform          ← real-time routing, fan-out, guaranteed delivery
-        │  durable queues (rw-ingest, events-ingest)
-        ▼
-  Python proxy             ← drains queues, injects topic + timestamp as HTTP headers
-        │  HTTP POST with x-message-topic, x-message-timestamp headers
+        │  native SMF protocol (direct queue binding)
         ▼
     RisingWave             ← "virtual topics" — any slice of data, expressed as SQL
         │
@@ -38,14 +35,14 @@ IoT devices / applications
 to the right consumers, handles guaranteed delivery, and enforces access control.
 Nothing about this architecture changes how Solace works for the systems already connected to it.
 
-**The Python proxy** is a lightweight service that subscribes to Solace's durable queues
-and HTTP-POSTs each message body to RisingWave's webhook endpoint. Crucially, it injects
-message envelope metadata — the original Solace topic and the sender timestamp — as HTTP
-headers. RisingWave captures these headers as first-class columns via `INCLUDE header`,
-making them available for routing and time-based queries without embedding them in the
-message body. Delivery is guaranteed: messages remain in the queue until RisingWave
-acknowledges receipt; failed deliveries are retried and eventually moved to a dead-letter
-queue.
+**RisingWave connects directly to Solace** via a native source connector that speaks
+the Solace SMF protocol. There is no proxy, no webhook, no HTTP intermediary. RisingWave
+binds to Solace's durable queues and receives messages — including the original topic
+address and sender timestamp — natively. Delivery semantics are exactly-once: RisingWave
+acknowledges messages only after successfully checkpointing them, so nothing is lost and
+nothing is duplicated. Backpressure flows naturally from RisingWave back to the broker —
+if the streaming engine slows down, the queue holds messages until it catches up. No
+dead-letter queue configuration or retry logic is needed at the application level.
 
 **RisingWave** replaces topic subscriptions with SQL. Instead of designing a topic hierarchy
 that anticipates every future consumer, developers write SQL queries. A new analytical view
@@ -239,34 +236,39 @@ managing cluster configuration, and deploying JVM applications. Operational over
 is high and developer onboarding is slow. RisingWave exposes the same capability through
 standard PostgreSQL-compatible SQL — the same language most analysts and data engineers already know.
 
-### Why a Python proxy instead of Solace's built-in REST Delivery Point?
+### Why a native connector instead of a proxy or REST Delivery Point?
 
-Solace's built-in REST Delivery Point (RDP) can deliver messages from a queue to an HTTP
-endpoint — but it forwards **only the raw message body**. The Solace topic address and
-sender timestamp are stripped at the HTTP boundary. The RDP has no way to inject
-per-message dynamic headers (the topic changes on every message; the RDP supports only
-static header values).
+Earlier versions of this architecture used a Python proxy to bridge Solace queues to
+RisingWave's webhook endpoint. That worked, but it added a moving part: an intermediary
+service that had to be deployed, monitored, scaled, and restarted independently. HTTP
+delivery meant retry logic, dead-letter queue configuration, and no native backpressure
+from the streaming engine to the broker.
 
-Because RisingWave's `INCLUDE header` feature captures HTTP headers as first-class table
-columns, we need those headers to carry the topic and timestamp. The Python proxy binds to
-Solace queues via the SDK, reads the message envelope, and constructs the HTTP request
-itself — giving full control over which headers are injected. The result: producers publish
-clean IoT payloads with no transport metadata embedded, and RisingWave receives the routing
-information it needs via headers rather than requiring it in every payload.
+The native Solace source connector eliminates all of that. RisingWave connects directly
+to Solace queues over the SMF protocol — the same protocol Solace uses internally. Message
+metadata (topic, timestamp) arrives natively without HTTP header injection. Delivery is
+exactly-once via checkpoint-based acknowledgment. Backpressure is handled by the protocol
+itself: if RisingWave falls behind, the broker holds messages in the queue. No webhook
+endpoint, no proxy service to operate. (The Solace connector currently requires a custom
+RisingWave build until it is merged upstream — once accepted, the stock image works.)
+
+The result is fewer services to deploy, stronger delivery guarantees, and an architecture
+that is straightforward to explain: generators publish to Solace, RisingWave reads from
+Solace. That directness matters for production adoption.
 
 ### Why not a message queue intermediary (Kafka/Redpanda)?
 
 Adding a broker intermediary between Solace and RisingWave adds operational complexity —
-another service to size, monitor, and fail. The Python proxy achieves the same durable,
-guaranteed delivery by binding directly to Solace's native queues, with no additional
+another service to size, monitor, and fail. The native connector achieves durable,
+exactly-once delivery by binding directly to Solace's native queues, with no additional
 infrastructure, connector plugins, or schema registry.
 
 ---
 
 ## What This POC Proves
 
-1. **The integration is real and working.** Solace Platform publishes, the Python proxy
-   delivers to RisingWave with topic and timestamp headers — all running together in Docker
+1. **The integration is real and working.** Solace Platform publishes, RisingWave reads
+   directly via the native Solace source connector — all running together in Docker
    Compose with a live 20-vehicle simulator generating continuous data.
 
 2. **The virtual topic pattern works at the SQL layer.** Eleven materialized views — including
@@ -276,6 +278,11 @@ infrastructure, connector plugins, or schema registry.
 3. **The architecture is non-invasive.** Nothing in the Solace Platform configuration changes
    for existing producers or consumers. The durable queue reads from a subscription that already
    exists (or is added without disruption).
+
+3a. **The native connector is a genuine open-source contribution.** No Solace source connector
+   existed in the RisingWave ecosystem before this project. The connector we built — speaking
+   the Solace SMF protocol with checkpoint-based exactly-once delivery — is a first, and it
+   benefits anyone who wants to connect Solace Platform to RisingWave without intermediaries.
 
 4. **The developer experience is dramatically simpler.** Adding a new analytical view is
    a SQL query, not a sprint. No topic hierarchy negotiation, no producer changes, no

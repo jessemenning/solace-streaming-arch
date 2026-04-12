@@ -41,8 +41,10 @@ services:
       start_period: 90s
 
   # ─── RisingWave (streaming SQL materialized views) ────────────────────────
-  # Receives fleet telemetry via Solace RDP → HTTP POST to webhook endpoint.
-  # Webhook endpoint: http://risingwave:4560/webhook/dev/public/fleet_all_raw
+  # Connects directly to Solace queues via the native Solace source connector.
+  # No webhook or proxy required — SMF protocol, ACK on checkpoint.
+  # Uses a custom binary from ~/risingwave (branch feat/solace-source-connector)
+  # because the Solace connector has not been merged upstream yet.
   risingwave:
     image: risingwavelabs/risingwave:latest
     container_name: risingwave
@@ -51,7 +53,6 @@ services:
       - streaming-net
     ports:
       - "4566:4566" # Frontend SQL (Postgres wire protocol)
-      - "4560:4560" # HTTP API — webhook ingestion endpoint
       - "5691:5691" # Dashboard / metadata
     volumes:
       - /home/jmenning/risingwave/target/debug/risingwave-stripped:/risingwave/bin/risingwave
@@ -84,32 +85,6 @@ services:
       TELEMETRY_INTERVAL: "${TELEMETRY_INTERVAL:-5.0}"
     depends_on:
       solace:
-        condition: service_healthy
-    restart: on-failure
-
-  # ─── Solace-to-RisingWave webhook proxy (replaces RDP) ────────────────────
-  # Subscribes to Solace queues, extracts topic + sender timestamp from the
-  # message envelope, and HTTP POSTs the body with metadata headers to RisingWave.
-  solace-proxy:
-    build:
-      context: ./proxy
-      dockerfile: Dockerfile
-    container_name: solace-proxy
-    hostname: solace-proxy
-    networks:
-      - streaming-net
-    environment:
-      SOLACE_HOST: tcp://solace:55555
-      SOLACE_VPN: streaming-poc
-      SOLACE_USER: streaming-user
-      SOLACE_PASSWORD: default
-      RW_HOST: risingwave
-      RW_WEBHOOK_PORT: "4560"
-      PROXY_WORKERS_PER_QUEUE: "4"
-    depends_on:
-      solace:
-        condition: service_healthy
-      risingwave:
         condition: service_healthy
     restart: on-failure
 

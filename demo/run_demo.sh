@@ -227,15 +227,15 @@ while true; do
   log "  still waiting for ep-setup... (${ep_elapsed}s, status=${ep_status})"
 done
 
-# Verify the table actually exists — psql returns exit 0 even when queries fail at
+# Verify the source actually exists — psql returns exit 0 even when queries fail at
 # the SQL level, so ep_setup_ok=true is not a reliable signal that DDL succeeded.
-rw_table_exists=$(psql -h localhost -p 4566 -U root -d dev -t -c \
-  "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'fleet_all_raw'" \
+rw_source_exists=$(psql -h localhost -p 4566 -U root -d dev -t -c \
+  "SELECT COUNT(*) FROM rw_catalog.rw_sources WHERE name = 'fleet_ingest_telemetry'" \
   2>/dev/null | tr -d ' \n' || echo "0")
 
-if [[ "${ep_setup_ok}" != "true" ]] || [[ "${rw_table_exists}" != "1" ]]; then
-  if [[ "${rw_table_exists}" != "1" ]]; then
-    log "  fleet_all_raw table missing — ep-setup DDL may have failed silently. Applying schema from host."
+if [[ "${ep_setup_ok}" != "true" ]] || [[ "${rw_source_exists}" != "1" ]]; then
+  if [[ "${rw_source_exists}" != "1" ]]; then
+    log "  fleet_ingest_telemetry source missing — ep-setup DDL may have failed silently. Applying schema from host."
   fi
   psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 fi
@@ -252,7 +252,7 @@ fi
 
 # ─── STEP 6: Wait for data to propagate ──────────────────────────────────────
 log "=== STEP 6: Waiting 35 seconds for data to flow through pipeline ==="
-log "  Solace Platform → rw-ingest queue → risingwave-rdp (RDP) → RisingWave webhook"
+log "  Solace Platform → queues → RisingWave Solace source connector (SMF)"
 for i in {1..7}; do
   sleep 5
   count=$(

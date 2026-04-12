@@ -98,13 +98,12 @@ semp_post "/msgVpns/${VPN}/clientUsernames" "$(cat <<JSON
 JSON
 )"
 
-# --- Queues: Solace → Python proxy → RisingWave webhook ---
-# Guaranteed delivery path: fleet/> → durable queue → Python proxy →
-# HTTP POST (with topic + timestamp headers) to RisingWave webhook endpoint.
-# The proxy service (solace-proxy container) binds to these queues via the SDK.
+# --- Queues: Solace → RisingWave native Solace connector ---
+# Guaranteed delivery path: fleet/> → durable queue → RisingWave Solace SOURCE.
+# The RisingWave Solace source connector binds directly to these queues via SMF.
 
 # ── 5. Durable ingest queue ───────────────────────────────────────────────────
-# permission "consume" is required for the RDP's internal client to bind to this queue.
+# permission "consume" is required for the RisingWave connector to bind to this queue.
 log "Creating queue: rw-ingest"
 semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 {
@@ -170,4 +169,4 @@ log "  VPN:   ${VPN}"
 log "  User:  streaming-user / default"
 log "  Queue: rw-ingest     →  fleet/telemetry/> + fleet/commands/>"
 log "  Queue: events-ingest →  fleet/events/>"
-log "  Proxy: solace-proxy container binds to both queues via SDK"
+log "  Connector: RisingWave Solace SOURCE binds to both queues via SMF"
