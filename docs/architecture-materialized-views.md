@@ -4,7 +4,7 @@
 
 The core pattern: SQL `WHERE` clauses replace Solace wildcard subscriptions.
 
-All messages arrive at `fleet_all_raw` (a single-column JSONB webhook table) via the Solace REST Delivery Point. Each payload includes the original Solace topic as `solace_topic`. RisingWave MVs replicate the same filtering:
+All messages arrive at `fleet_all_raw` via the Python proxy (`solace-proxy`), which subscribes to Solace's durable queues and HTTP-POSTs each payload to RisingWave's webhook endpoint. The proxy injects the Solace topic and sender timestamp as HTTP headers (`x-message-topic`, `x-message-timestamp`); RisingWave captures them as first-class VARCHAR columns via `INCLUDE header`. The routing MVs alias `_topic` as `solace_topic` — the original Solace topic address is available for SQL filtering without being embedded in the message body. RisingWave MVs replicate Solace wildcard filtering:
 
 | Solace subscription | RisingWave equivalent |
 |---|---|
@@ -21,7 +21,7 @@ The `*` → `%` substitution is the direct translation between SMF wildcards and
 Solace Event Portal  (design-time catalog — drives code generation)
   └── generate_mvs.py → config/risingwave/init.sql
         ↓
-fleet_all_raw  (webhook TABLE — receives HTTP POSTs from Solace RDP, single JSONB column)
+fleet_all_raw  (webhook TABLE — receives HTTP POSTs from Python proxy; columns: data JSONB + _topic VARCHAR + _timestamp VARCHAR via INCLUDE header)
   ├── fleet_telemetry_raw  (static routing MV — LIKE 'fleet/telemetry/%')
   ├── fleet_events_raw     (static routing MV — LIKE 'fleet/events/%')
   └── fleet_commands_raw   (static routing MV — LIKE 'fleet/commands/%')
