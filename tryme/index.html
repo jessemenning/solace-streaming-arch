@@ -704,7 +704,7 @@
       <div class="hist-section">
         <div class="hist-header">
           <label class="hist-toggle" onclick="toggleHistory()">
-            <div class="toggle-box on" id="histToggle"></div>
+            <div class="toggle-box" id="histToggle"></div>
             <span class="hist-label">Replay historical data first</span>
           </label>
         </div>
@@ -846,7 +846,7 @@ function switchTab(name) {
 // Subscribe panel state
 // ══════════════════════════════════════════════════════════════════════════════
 let currentReader  = null;
-let histEnabled    = true;
+let histEnabled    = false;
 let selectedDur    = '1h';
 let histCnt        = 0;
 let liveCnt        = 0;

@@ -20,7 +20,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
@@ -592,7 +592,12 @@ def start_receiver(
                     except Exception:
                         payload = {"_raw": raw.decode("utf-8", errors="replace") if raw else ""}
 
-                item = {"type": "live", "topic": topic, "payload": payload}
+                raw_ts = msg.get_sender_timestamp()
+                if raw_ts is not None:
+                    ts_str = datetime.fromtimestamp(raw_ts / 1000, tz=timezone.utc).isoformat()
+                else:
+                    ts_str = datetime.now(timezone.utc).isoformat()
+                item = {"type": "live", "topic": topic, "payload": payload, "ts": ts_str}
                 try:
                     loop.call_soon_threadsafe(async_q.put_nowait, item)
                 except Exception:
@@ -844,7 +849,7 @@ async def subscribe_sse(
                     continue
 
                 payload = item.get("payload", {})
-                ts = payload.get("recorded_at") or payload.get("occurred_at") or payload.get("issued_at")
+                ts = item.get("ts") or payload.get("recorded_at") or payload.get("occurred_at") or payload.get("issued_at")
                 dedup_key = (payload.get("vehicle_id"), ts)
 
                 if dedup_key in seen:
