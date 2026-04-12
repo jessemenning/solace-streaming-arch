@@ -128,8 +128,7 @@ class Vehicle:
             "unit":         unit,
             "latitude":     round(self.lat, 6),
             "longitude":    round(self.lon, 6),
-            "recorded_at":  datetime.now(timezone.utc).isoformat(),
-            "solace_topic": topic,
+            "_topic":       topic,
         }
 
     def telemetry_all_payload(self) -> dict:
@@ -144,8 +143,7 @@ class Vehicle:
             "battery_voltage": round(self.battery_v, 3),
             "latitude":        round(self.lat, 6),
             "longitude":       round(self.lon, 6),
-            "recorded_at":     datetime.now(timezone.utc).isoformat(),
-            "solace_topic":    topic,
+            "_topic":          topic,
         }
 
     def alert_payload(self, alert_type: str, severity: str) -> dict:
@@ -181,8 +179,7 @@ class Vehicle:
             "severity":     severity,
             "description":  descriptions[alert_type],
             "payload":      extra,
-            "occurred_at":  datetime.now(timezone.utc).isoformat(),
-            "solace_topic": topic,
+            "_topic":       topic,
         }
 
 
@@ -199,10 +196,13 @@ class FleetPublisher:
 
     def publish(self, topic_str: str, payload: dict) -> None:
         try:
+            # Strip _topic from payload — it's only used for Solace routing,
+            # not part of the IoT message body.
+            body = {k: v for k, v in payload.items() if k != "_topic"}
             msg = (
                 self._svc.message_builder()
                 .with_application_message_id(f"msg-{self._msg_count}")
-                .build(json.dumps(payload))
+                .build(json.dumps(body))
             )
             self._publisher.publish(message=msg, destination=Topic.of(topic_str))
             self._msg_count += 1
@@ -231,7 +231,7 @@ def run_simulation(
 
             # Publish one combined message per vehicle with all metrics
             payload = v.telemetry_all_payload()
-            publisher.publish(payload["solace_topic"], payload)
+            publisher.publish(payload["_topic"], payload)
 
             # Random alert generation
             if now - v.last_alert > ALERT_MIN_INTERVAL and random.random() < ALERT_PROBABILITY:
@@ -244,7 +244,7 @@ def run_simulation(
                     severity = "high"
 
                 payload = v.alert_payload(alert_type, severity)
-                publisher.publish(payload["solace_topic"], payload)
+                publisher.publish(payload["_topic"], payload)
                 v.last_alert = now
                 print(
                     f"[alert] {v.vehicle_id} | {severity:6s} | {alert_type}",
@@ -257,7 +257,7 @@ def run_simulation(
             for _ in range(3):
                 alert_type = random.choice(list(ALERT_TYPES.keys()))
                 payload = bv.alert_payload(alert_type, "high")
-                publisher.publish(payload["solace_topic"], payload)
+                publisher.publish(payload["_topic"], payload)
             print(f"[burst] Sent 3 extra HIGH alerts for {args.burst_vehicle}", flush=True)
 
         if tick % 10 == 0:

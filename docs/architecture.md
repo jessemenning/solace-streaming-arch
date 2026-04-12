@@ -10,8 +10,9 @@ application running continuously.
 
 This POC demonstrates an alternative: use Solace for what it is best at
 (real-time routing, fan-out, guaranteed delivery), and move the "subscription logic" into the
-database layer (RisingWave materialized views). Solace's built-in REST Delivery Point
-connects the two with no custom connector code.
+database layer (RisingWave materialized views). A Python proxy subscribes to Solace's durable
+queues and delivers messages to RisingWave's webhook endpoint, injecting message envelope
+metadata (topic, timestamp) as HTTP headers.
 
 ---
 
@@ -35,17 +36,23 @@ Fleet vehicles
      ▼
 Solace Platform Event Broker   port 55554 (SMF)
   VPN: streaming-poc
-  Queue: rw-ingest  ← subscription: fleet/>  (durable, guaranteed delivery)
+  Queue: rw-ingest      ← subscriptions: fleet/telemetry/>, fleet/commands/>
+  Queue: events-ingest  ← subscription: fleet/events/>
      │
-     │  REST Delivery Point (risingwave-rdp) — built-in Solace feature, no connector code
-     │  HTTP POST to risingwave:4560  (Content-Type: application/json)
+     │  Python proxy (solace-proxy container)
+     │  — binds to queues via PersistentMessageReceiver
+     │  — HTTP POST to risingwave:4560/webhook/dev/public/fleet_all_raw
+     │    headers: x-message-topic, x-message-timestamp
      ▼
 RisingWave Streaming SQL Engine   port 4566 (Postgres wire protocol)
-  Webhook TABLE: fleet_all_raw  (single JSONB column — receives every HTTP POST)
-  Routing MVs (extract typed columns from JSONB, filter by solace_topic):
-    fleet_telemetry_raw           → WHERE solace_topic LIKE 'fleet/telemetry/%'
-    fleet_events_raw              → WHERE solace_topic LIKE 'fleet/events/%'
-    fleet_commands_raw            → WHERE solace_topic LIKE 'fleet/commands/%'
+  Webhook TABLE: fleet_all_raw
+    columns: data JSONB
+    INCLUDE header 'x-message-topic'     VARCHAR AS _topic
+    INCLUDE header 'x-message-timestamp' VARCHAR AS _timestamp
+  Routing MVs (extract typed columns from JSONB, filter by _topic header):
+    fleet_telemetry_raw           → WHERE _topic LIKE 'fleet/telemetry/%'
+    fleet_events_raw              → WHERE _topic LIKE 'fleet/events/%'
+    fleet_commands_raw            → WHERE _topic LIKE 'fleet/commands/%'
   EP-generated MVs (one per event version in Fleet Operations domain):
     vehicle_speed                 → WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/speed'
     vehicle_fuel_level            → WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/fuel_level'
@@ -93,21 +100,32 @@ Adding a new event type in EP automatically produces a corresponding RisingWave 
 
 ## Design Decisions
 
-### 1. Solace topic preserved in payload
+### 1. Python proxy instead of Solace REST Delivery Point (RDP)
 
-Every message payload includes the original Solace topic address as `solace_topic`.
-The generator sets this field before publishing. RisingWave uses `WHERE solace_topic LIKE '...'`
-to reconstruct any logical sub-stream that was previously a Solace wildcard subscription.
+Solace's built-in REST Delivery Point (RDP) can HTTP-POST message bodies to a webhook
+endpoint, but it forwards **only the raw body** — topic address and sender timestamp are
+stripped at the HTTP boundary. There is no way to configure the RDP to inject dynamic
+per-message headers (the topic changes on every message; the RDP only supports static
+header values).
 
-This is more reliable than relying on HTTP headers (which require per-connector configuration)
-and survives schema changes or connector swaps unchanged.
+The Python proxy solves this by subscribing to Solace queues via the SDK and constructing
+the HTTP request itself. It injects `x-message-topic` (the Solace destination topic from
+`msg.get_destination_name()`) and `x-message-timestamp` (the sender timestamp from
+`msg.get_sender_timestamp()`, converted to ISO 8601 UTC) as headers on every POST.
+
+RisingWave captures them via `INCLUDE header` as first-class VARCHAR columns (`_topic`,
+`_timestamp`) on the `fleet_all_raw` table. This keeps generator payloads clean —
+producers publish pure IoT data with no transport metadata embedded. Routing and timestamp
+logic lives in the delivery layer (proxy + RisingWave), not the producer. Routing MVs
+alias `_topic AS solace_topic` and `_timestamp::TIMESTAMPTZ AS recorded_at` so all
+downstream analytics MVs require zero changes.
 
 ### 2. Single webhook TABLE with JSONB routing MVs
 
-RisingWave's webhook connector requires a single `data JSONB` column.
-Rather than fighting this constraint, the routing layer (three MVs) extracts typed columns
-from JSONB and filters by `solace_topic`. All analytics MVs above them see ordinary typed
-columns and are unaffected by the ingest format.
+RisingWave's webhook connector accepts a `data JSONB` column plus `INCLUDE header` columns.
+The routing layer (three MVs) extracts typed columns from the JSONB body and filters by
+`_topic`. All analytics MVs above them see ordinary typed columns and are unaffected by
+the ingest format.
 
 This isolates the JSONB extraction concern to one layer, keeping analytics MVs clean and readable.
 
@@ -144,7 +162,7 @@ End-to-end latency (Solace publish → RisingWave materialized view visible):
 | Segment | Expected latency |
 |---|---|
 | Solace publish → queue `rw-ingest` | < 5 ms |
-| RDP HTTP POST → RisingWave webhook | 5–50 ms (network + HTTP round-trip) |
+| Proxy receive → HTTP POST → RisingWave webhook | 5–50 ms (network + HTTP round-trip) |
 | RisingWave incremental view update | < 100 ms for simple filters |
 | Total typical | 50–200 ms |
 
