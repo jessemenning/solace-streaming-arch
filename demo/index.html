@@ -885,6 +885,10 @@ async function sendMessage() {
           if (agentText) {
             conversationHistory.push({ role: 'assistant', content: agentText });
           }
+        } else if (evt.type === 'error') {
+          removeThinking();
+          if (!agentBubble) agentBubble = addAgentMessageEl();
+          agentBubble.textContent = `Error: ${evt.content}`;
         }
       }
     }

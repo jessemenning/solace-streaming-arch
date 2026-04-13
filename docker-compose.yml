@@ -92,8 +92,8 @@ services:
   # ─── Fleet Operations AI (agentic demo UI) ───────────────────────────────
   fleet-agent:
     build:
-      context: ./demo
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: demo/Dockerfile
     container_name: fleet-agent
     hostname: fleet-agent
     networks:
@@ -119,8 +119,8 @@ services:
   # ─── Solace+ Try Me (enhanced Try Me tab with history replay) ───────────────
   tryme:
     build:
-      context: ./tryme
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: tryme/Dockerfile
     container_name: tryme
     hostname: tryme
     networks:

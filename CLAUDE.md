@@ -154,7 +154,7 @@ Note: use `up -d` (not `restart`) after a rebuild — `restart` reuses the old c
 
 | Path | Purpose |
 |---|---|
-| `docker-compose.yml` | Six services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup |
+| `docker-compose.yml` | Seven services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup, rw-init |
 | `risingwave-solace/Dockerfile` | Custom RisingWave image with Solace connector — published to `ghcr.io/jessemenning/risingwave:solace-connector` |
 | `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, ingest queues `rw-ingest`, `events-ingest`, `commands-ingest`, and DMQs `dlq-telemetry`, `dlq-events`, `dlq-commands` |
 | `create_ep_objects.sh` | **Clean-start** EP setup: deletes any existing "Fleet Operations" domain then recreates all schemas, events, and applications; exits 2 (not 1) if EP is unreachable so callers can fall back gracefully |
@@ -182,6 +182,14 @@ Note: use `up -d` (not `restart`) after a rebuild — `restart` reuses the old c
 | `tryme/requirements.txt` | `fastapi`, `uvicorn`, `psycopg2-binary`, `solace-pubsubplus`, `pyyaml`, `python-dotenv` |
 | `tryme/Dockerfile` | Python 3.11-slim; exposes port 8091 |
 | `.env.template` | Committed placeholder — copy to `.env` at project root and fill in credentials |
+| `backfill/query_client.py` | `RisingWaveClient` — event-driven, backfill-aware query client; waits for connector readiness via Solace event or status table fallback |
+| `backfill/publish_sentinel.py` | Publishes sentinel message with `x-solace-sentinel` user property to mark historical/live boundary |
+| `backfill/monitor_queue.py` | SEMP v2 queue depth monitor for backfill progress observability |
+| `backfill/status.py` | Lightweight status checker — reads `rw_solace_connector_status` table; used by Try Me and Fleet Agent UIs |
+| `backfill/backfill_and_go.sh` | End-to-end backfill orchestrator: publish sentinel → create schema → wait for readiness → verify |
+| `backfill/risingwave/init.sql` | Reference schema for backfill pattern (unified `solace_events` source + clean business MVs, no sentinel filters) |
+| `backfill/CONNECTOR_DESIGN.md` | Design reference for connector-side sentinel detection, barrier flush, and readiness event — implemented in `~/risingwave/src/connector/src/source/solace/` |
+| `backfill/requirements.txt` | Backfill module dependencies |
 
 ---
 
@@ -382,6 +390,68 @@ solace+ env vars (override defaults via `.env` or export):
 
 ---
 
+## Historical Backfill Pattern
+
+The `backfill/` directory implements an event-driven historical backfill and live cutover system.
+All correctness logic lives in the connector — consumers are simple.
+
+### How it works
+
+1. Historical events accumulate in a durable Solace queue while RisingWave is offline
+2. A **sentinel message** (identified by Solace user property `x-solace-sentinel = backfill-complete`)
+   is published at the tail of the queue to mark the historical/live boundary
+3. The connector consumes the queue in FIFO order, emitting business events to the source table
+4. When the connector detects the sentinel, it **intercepts it** (never emits to source table),
+   triggers a barrier flush (`WAIT`), writes `rw_solace_connector_status`, and publishes a
+   readiness event to `system/risingwave/connector/{name}/ready`
+5. Consumers subscribe to the readiness event (instant notification, no polling); late joiners
+   check the status table once on startup
+
+### Key design principles
+
+- **Smart connector, simple consumer**: sentinel detection, barrier flush, readiness signal all
+  happen in the connector. Consumers just subscribe and react.
+- **Event-driven readiness**: consumers get notified via Solace event in milliseconds. No polling
+  loop, no RisingWave query load while waiting.
+- **Defense in depth**: status table is a fallback for consumers that start after the readiness event.
+- **Clean business views**: sentinel never reaches the source table, so MVs need zero sentinel filters.
+
+### Backfill commands
+
+```bash
+# Publish sentinel (after historical data accumulated, before starting connector)
+python3 backfill/publish_sentinel.py
+
+# Full orchestration (sentinel → schema → wait → verify)
+bash backfill/backfill_and_go.sh
+
+# Monitor queue depth during backfill (observability)
+python3 backfill/monitor_queue.py
+```
+
+### Consumer usage (Python)
+
+```python
+from backfill.query_client import RisingWaveClient
+
+with RisingWaveClient() as client:
+    client.wait_for_ready()  # blocks until readiness event or status table
+    rows = client.query("SELECT * FROM high_severity_alerts LIMIT 10")
+```
+
+### Connector-side implementation
+
+Implemented in `~/risingwave/src/connector/src/source/solace/`. Key files:
+
+- `source/message.rs` — `SolaceMessage::is_sentinel()` detects `x-solace-sentinel = backfill-complete` user property; user properties extracted via `get_user_properties()`
+- `split.rs` — `SolaceSplit` checkpoint state carries `sentinel_detected` + `sentinel_detected_at` (backward-compatible via `#[serde(default)]`)
+- `mod.rs` — `SolaceProperties` has optional `solace.sentinel_readiness_topic` config key
+- `source/reader.rs` — `into_data_stream()` intercepts sentinel: acks it, writes `rw_solace_connector_status` via `tokio_postgres`, publishes readiness event back to Solace; on restart re-publishes if `sentinel_detected = true` from checkpoint
+
+See `backfill/CONNECTOR_DESIGN.md` for the original design spec.
+
+---
+
 ## Common Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -397,3 +467,5 @@ solace+ env vars (override defaults via `.env` or export):
 | Try Me live events show `_raw` with framing bytes | Solace SMF SDK `get_payload_as_bytes()` includes 5-byte protocol header | Fixed: `tryme/server.py` uses `get_payload_as_string()` first |
 | `ep-setup` container shows "statically defined events" warning | Event Portal unreachable or `SOLACE_CLOUD_TOKEN` not set | Expected — stack runs normally on static schema; set token and restart `ep-setup` to add EP catalog objects |
 | `ep-setup` exits with code 2 | EP connectivity check failed (bad token or network) | Check token validity and network; exit 2 is intentional (graceful fallback, not a fatal error) |
+| Fleet Agent chat shows "Connection error: network error" | Anthropic API error before first SSE byte (budget exceeded or bad key) | Check browser console for HTTP status; check server logs for `BadRequestError`/`budget_exceeded`; add Anthropic credits or verify `ANTHROPIC_API_KEY` in `.env` |
+| Fleet Agent chat shows "API budget limit reached" | Anthropic account billing limit hit | Add credits at https://console.anthropic.com; the error is surfaced in the chat UI rather than silently closing the connection |

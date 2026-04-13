@@ -6,6 +6,7 @@ Enhanced Try Me tab with history replay from RisingWave + live from Solace Platf
 Endpoints:
   GET  /                  → serve index.html
   GET  /config            → connection info and topic list
+  GET  /backfill-status   → connector readiness check
   POST /publish           → publish to Solace SMF
   GET  /subscribe         → SSE: optional history from RisingWave, then live from SMF
   DELETE /subscribe/{sid} → stop a live subscription
@@ -34,6 +35,11 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+
+# Add project root to path for backfill module
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from backfill.status import check_backfill_status
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -655,6 +661,16 @@ async def root():
     return HR(content=html.read_text(), headers={"Cache-Control": "no-store"})
 
 
+@app.get("/backfill-status")
+async def backfill_status():
+    """Check connector backfill readiness from rw_solace_connector_status table."""
+    loop = asyncio.get_running_loop()
+    status = await loop.run_in_executor(
+        _executor, check_backfill_status, RW_HOST, RW_PORT,
+    )
+    return status
+
+
 @app.get("/config")
 async def get_config():
     """Return connection info and available topics with history support."""
@@ -675,6 +691,13 @@ async def get_config():
                     "aggregates": m.get("aggregates"),
                 }
             )
+
+    # Include backfill status in config response
+    loop = asyncio.get_running_loop()
+    bf_status = await loop.run_in_executor(
+        _executor, check_backfill_status, RW_HOST, RW_PORT,
+    )
+
     return {
         "solace": {
             "host": SOLACE_HOST,
@@ -686,6 +709,7 @@ async def get_config():
             "host": RW_HOST,
             "port": RW_PORT,
         },
+        "backfill": bf_status,
         "topics": topics,
         "duration_presets": list(_DURATION_MAP.keys()),
         "query_presets": QUERY_PRESETS,
@@ -786,6 +810,15 @@ async def subscribe_sse(
         seen: set = set()
         hist_count = 0
 
+
+        # ── 0. Check backfill readiness ────────────────────────────────────
+        bf_status = await loop.run_in_executor(
+            _executor, check_backfill_status, RW_HOST, RW_PORT,
+        )
+        yield f"data: {json.dumps({'type':'backfill_status', 'ready': bf_status['ready'], 'connectors': bf_status.get('connectors', [])})}\n\n"
+
+        if not bf_status["ready"] and bf_status.get("table_exists"):
+            yield f"data: {json.dumps({'type':'status','message':'Backfill in progress — history queries may be incomplete until connector signals ready'})}\n\n"
 
         # ── 1. Start live receiver immediately (buffer during history replay) ──
         yield f"data: {json.dumps({'type':'status','message':'Connecting to Solace Platform...'})}\n\n"

@@ -250,12 +250,63 @@ solace-streaming-arch/
 │   ├── index.html                    Fleet Operations AI single-page UI
 │   ├── Dockerfile
 │   └── requirements.txt
-└── tryme/
-    ├── server.py                     FastAPI backend for Solace+ Try Me: SSE subscribe, publish, topic registry
-    ├── index.html                    Solace+ Try Me UI — pub/sub with history replay
-    ├── Dockerfile
-    └── requirements.txt
+├── tryme/
+│   ├── server.py                     FastAPI backend for Solace+ Try Me: SSE subscribe, publish, topic registry
+│   ├── index.html                    Solace+ Try Me UI — pub/sub with history replay
+│   ├── Dockerfile
+│   └── requirements.txt
+└── backfill/
+    ├── query_client.py               Event-driven RisingWave client with backfill-aware readiness
+    ├── publish_sentinel.py           Publishes sentinel boundary marker to Solace
+    ├── monitor_queue.py              SEMP queue depth monitor for backfill progress
+    ├── status.py                     Lightweight readiness checker (used by Try Me + Fleet Agent)
+    ├── backfill_and_go.sh            End-to-end backfill orchestration script
+    ├── requirements.txt
+    ├── CONNECTOR_DESIGN.md           Original design spec for connector-side implementation
+    └── risingwave/
+        └── init.sql                  Reference schema for backfill pattern
 ```
+
+---
+
+## Historical Backfill
+
+The `backfill/` module implements event-driven historical data replay. When RisingWave needs
+to catch up on events that accumulated in a Solace queue while it was offline, this system
+coordinates the transition from historical to live data:
+
+1. **Sentinel publisher** marks the boundary between historical and live events using a Solace
+   user property (`x-solace-sentinel`), not payload content
+2. **Connector** (when backfill-aware) intercepts the sentinel, triggers a barrier flush, and
+   publishes a readiness event to Solace
+3. **Consumers** subscribe to the readiness event for instant notification; late joiners check a
+   status table once on startup
+
+```bash
+# Full orchestration
+bash backfill/backfill_and_go.sh
+
+# Or step by step:
+python3 backfill/publish_sentinel.py          # Mark boundary
+psql ... -f backfill/risingwave/init.sql      # Create schema (starts connector)
+python3 backfill/monitor_queue.py             # Watch progress (optional)
+```
+
+Consumer code:
+
+```python
+from backfill.query_client import RisingWaveClient
+
+with RisingWaveClient() as client:
+    client.wait_for_ready()  # Blocks until connector signals readiness
+    rows = client.query("SELECT * FROM high_severity_alerts LIMIT 10")
+```
+
+Both the Fleet Agent UI and Try Me UI check backfill readiness automatically via
+`/backfill-status` endpoints and show status indicators during backfill.
+
+For full developer documentation, see `CLAUDE.md`. For the original connector design spec,
+see `backfill/CONNECTOR_DESIGN.md`.
 
 ---
 
@@ -343,6 +394,9 @@ Check `docker logs -f fleet-generator`. The container polls SEMP until the `stre
 
 **Fleet Agent UI not starting**  
 Ensure `.env` exists at project root with a valid `ANTHROPIC_API_KEY`. Copy from `.env.template` if missing.
+
+**Fleet Agent chat shows "Connection error: network error"**  
+The Anthropic API returned an error before the first SSE byte — typically budget exceeded or an invalid key. The chat UI will show a specific error message. Add Anthropic credits at https://console.anthropic.com or re-check `ANTHROPIC_API_KEY` in `.env`.
 
 **Port conflicts**  
 Default Solace SEMP port 8080 is often in use; this project maps it to 8180. If other ports conflict, edit `docker-compose.yml` port mappings.
