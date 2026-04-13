@@ -104,10 +104,10 @@
   <!-- Divider -->
   <line x1="310" y1="308" x2="480" y2="308" stroke="#00C895" stroke-width="0.5" opacity="0.4"/>
 
-  <!-- RDP sub-section inside Solace panel -->
-  <text x="395" y="328" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FCA829">REST Delivery Point</text>
-  <text x="395" y="344" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.85">Built-in HTTP bridge — no</text>
-  <text x="395" y="358" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.85">custom connector code</text>
+  <!-- Native Solace Connector sub-section inside Solace panel -->
+  <text x="395" y="328" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FCA829">Native Solace Connector</text>
+  <text x="395" y="344" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.85">Direct SMF queue binding —</text>
+  <text x="395" y="358" text-anchor="middle" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.85">no proxy or HTTP bridge</text>
 
   <!-- Divider -->
   <line x1="310" y1="374" x2="480" y2="374" stroke="#00C895" stroke-width="0.5" opacity="0.4"/>
@@ -218,7 +218,7 @@
   <text x="892" y="514" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">• Geofence membership, fleet summaries</text>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!-- ARROW: Solace → RisingWave (RDP / bottom path)         -->
+  <!-- ARROW: Solace → RisingWave (Native Solace Connector / bottom path) -->
   <!-- Goes down from Solace bottom, right to RisingWave      -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <!-- Down from Solace bottom center -->
@@ -229,7 +229,7 @@
   <line x1="1020" y1="580" x2="1020" y2="516" stroke="#FCA829" stroke-width="2" marker-end="url(#arrow-orange)"/>
   <!-- Label -->
   <rect x="630" y="568" width="160" height="16" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="710" y="580" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FCA829">REST Delivery Point (built-in)</text>
+  <text x="710" y="580" text-anchor="middle" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#FCA829">Native Solace Connector (SMF)</text>
 
   <!-- ═══════════════════════════════════════════════════════ -->
   <!-- ARROW: AI Agents → RisingWave (deep research)          -->
@@ -252,6 +252,6 @@
   <line x1="888" y1="674" x2="920" y2="674" stroke="#00C895" stroke-width="2"/>
   <text x="928" y="678" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">Real-time event stream</text>
   <line x1="888" y1="694" x2="920" y2="694" stroke="#FCA829" stroke-width="2"/>
-  <text x="928" y="698" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">REST Delivery Point (built-in)</text>
+  <text x="928" y="698" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" opacity="0.75">Native Solace Connector (SMF)</text>
 
 </svg>
