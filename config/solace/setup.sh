@@ -98,13 +98,53 @@ semp_post "/msgVpns/${VPN}/clientUsernames" "$(cat <<JSON
 JSON
 )"
 
-# --- Queues: Solace → Python proxy → RisingWave webhook ---
-# Guaranteed delivery path: fleet/> → durable queue → Python proxy →
-# HTTP POST (with topic + timestamp headers) to RisingWave webhook endpoint.
-# The proxy service (solace-proxy container) binds to these queues via the SDK.
+# --- Queues: Solace → RisingWave native Solace connector ---
+# Guaranteed delivery path: fleet/> → durable queue → RisingWave Solace SOURCE.
+# The RisingWave Solace source connector binds directly to these queues via SMF.
+# Each ingest queue has a dedicated dead-message queue (DMQ) for failed deliveries.
 
-# ── 5. Durable ingest queue ───────────────────────────────────────────────────
-# permission "consume" is required for the RDP's internal client to bind to this queue.
+# ── 5. Dead-message queues (one per ingest queue) ────────────────────────────
+log "Creating dead-message queue: dlq-telemetry"
+semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
+{
+  "queueName": "dlq-telemetry",
+  "ingressEnabled": true,
+  "egressEnabled": true,
+  "accessType": "exclusive",
+  "permission": "consume",
+  "maxMsgSpoolUsage": 50
+}
+JSON
+)"
+
+log "Creating dead-message queue: dlq-events"
+semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
+{
+  "queueName": "dlq-events",
+  "ingressEnabled": true,
+  "egressEnabled": true,
+  "accessType": "exclusive",
+  "permission": "consume",
+  "maxMsgSpoolUsage": 50
+}
+JSON
+)"
+
+log "Creating dead-message queue: dlq-commands"
+semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
+{
+  "queueName": "dlq-commands",
+  "ingressEnabled": true,
+  "egressEnabled": true,
+  "accessType": "exclusive",
+  "permission": "consume",
+  "maxMsgSpoolUsage": 50
+}
+JSON
+)"
+
+# ── 6. Durable ingest queue — telemetry ──────────────────────────────────────
+# permission "consume" is required for the RisingWave connector to bind to this queue.
 log "Creating queue: rw-ingest"
 semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 {
@@ -115,31 +155,23 @@ semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
   "permission": "consume",
   "maxMsgSpoolUsage": 100,
   "maxRedeliveryCount": 3,
-  "deadMsgQueue": "#DEAD_MSG_QUEUE",
+  "deadMsgQueue": "dlq-telemetry",
   "maxTtl": 300,
   "respectTtlEnabled": true
 }
 JSON
 )"
 
-# ── 6. Topic subscriptions on rw-ingest ──────────────────────────────────────
-# Telemetry and commands only — events go to a separate queue to avoid
-# alert messages being blocked behind high-volume telemetry.
-log "Adding subscriptions fleet/telemetry/> and fleet/commands/> to rw-ingest"
+# ── 7. Topic subscriptions on rw-ingest (telemetry only) ─────────────────────
+log "Adding subscription fleet/telemetry/> to rw-ingest"
 semp_post "/msgVpns/${VPN}/queues/rw-ingest/subscriptions" "$(cat <<JSON
 {
   "subscriptionTopic": "fleet/telemetry/>"
 }
 JSON
 )"
-semp_post "/msgVpns/${VPN}/queues/rw-ingest/subscriptions" "$(cat <<JSON
-{
-  "subscriptionTopic": "fleet/commands/>"
-}
-JSON
-)"
 
-# ── 6b. Events queue (separate from telemetry to avoid head-of-line blocking) ─
+# ── 8. Events queue (separate to avoid head-of-line blocking by telemetry) ───
 log "Creating queue: events-ingest"
 semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
 {
@@ -150,7 +182,7 @@ semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
   "permission": "consume",
   "maxMsgSpoolUsage": 100,
   "maxRedeliveryCount": 3,
-  "deadMsgQueue": "#DEAD_MSG_QUEUE",
+  "deadMsgQueue": "dlq-events",
   "maxTtl": 300,
   "respectTtlEnabled": true
 }
@@ -165,9 +197,36 @@ semp_post "/msgVpns/${VPN}/queues/events-ingest/subscriptions" "$(cat <<JSON
 JSON
 )"
 
+# ── 9. Commands queue (separate schema from telemetry) ───────────────────────
+log "Creating queue: commands-ingest"
+semp_post "/msgVpns/${VPN}/queues" "$(cat <<JSON
+{
+  "queueName": "commands-ingest",
+  "ingressEnabled": true,
+  "egressEnabled": true,
+  "accessType": "exclusive",
+  "permission": "consume",
+  "maxMsgSpoolUsage": 100,
+  "maxRedeliveryCount": 3,
+  "deadMsgQueue": "dlq-commands",
+  "maxTtl": 300,
+  "respectTtlEnabled": true
+}
+JSON
+)"
+
+log "Adding subscription fleet/commands/> to commands-ingest"
+semp_post "/msgVpns/${VPN}/queues/commands-ingest/subscriptions" "$(cat <<JSON
+{
+  "subscriptionTopic": "fleet/commands/>"
+}
+JSON
+)"
+
 log "Solace setup complete."
 log "  VPN:   ${VPN}"
 log "  User:  streaming-user / default"
-log "  Queue: rw-ingest     →  fleet/telemetry/> + fleet/commands/>"
-log "  Queue: events-ingest →  fleet/events/>"
-log "  Proxy: solace-proxy container binds to both queues via SDK"
+log "  Queue: rw-ingest       →  fleet/telemetry/>  (DMQ: dlq-telemetry)"
+log "  Queue: events-ingest   →  fleet/events/>     (DMQ: dlq-events)"
+log "  Queue: commands-ingest →  fleet/commands/>   (DMQ: dlq-commands)"
+log "  Connector: RisingWave Solace SOURCE binds to all three queues via SMF"

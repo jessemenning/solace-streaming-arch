@@ -26,8 +26,8 @@ from pathlib import Path
 
 EP_BASE = "https://api.solace.cloud/api/v2/architecture"
 
-# All columns declared in fleet_all_raw SOURCE — the universe of valid SELECT targets
-# (order matches the CREATE SOURCE declaration in STATIC_SOURCE below)
+# All columns available in routing MVs — the universe of valid SELECT targets
+# (order matches the routing MV declarations in STATIC_BRANCH_MVS below)
 SOURCE_COLUMNS_ORDERED = [
     "vehicle_id",
     "speed", "fuel_level", "engine_temp", "tire_pressure", "battery_voltage",
@@ -231,81 +231,135 @@ STATIC_HEADER = """\
 -- Re-generate: python3 generate_mvs.py
 -- =============================================================================
 -- Architecture:
---   A Python proxy subscribes to Solace Platform queues and HTTP POSTs each
---   message to the RisingWave webhook endpoint.  The proxy injects the Solace
---   destination topic and sender timestamp as HTTP headers:
---     x-message-topic      — e.g. fleet/telemetry/vehicle_001/metrics
---     x-message-timestamp  — ISO 8601 UTC sender timestamp
+--   RisingWave connects directly to Solace Platform queues via the native
+--   Solace source connector (SMF protocol).  Three SOURCEs bind to separate
+--   queues — one per message schema — to prevent head-of-line blocking and
+--   avoid mixed-schema union columns.
 --
---   RisingWave captures these via INCLUDE header on the webhook TABLE as
---   _topic (VARCHAR) and _timestamp (VARCHAR) columns.
+--   Metadata columns from the Solace message envelope:
+--     _rw_solace_destination  — Solace destination topic (VARCHAR)
+--     _rw_solace_timestamp    — sender timestamp (TIMESTAMPTZ)
 --
---   fleet_all_raw (webhook TABLE — proxy HTTP POST → port 4560)
---     ├─ fleet_telemetry_raw  (MV — WHERE _topic LIKE 'fleet/telemetry/%')
---     ├─ fleet_events_raw     (MV — WHERE _topic LIKE 'fleet/events/%')
---     ├─ fleet_commands_raw   (MV — WHERE _topic LIKE 'fleet/commands/%')
---     └─ <event-name>         (EP-generated — one per event version)
+--   fleet_ingest_telemetry (Solace SOURCE — rw-ingest queue)
+--     └─ fleet_telemetry_raw  (MV — typed columns from telemetry schema)
+--   fleet_ingest_events (Solace SOURCE — events-ingest queue)
+--     └─ fleet_events_raw     (MV — typed columns from events schema)
+--   fleet_ingest_commands (Solace SOURCE — commands-ingest queue)
+--     └─ fleet_commands_raw   (MV — typed columns from commands schema)
 -- =============================================================================""".rstrip()
 
 STATIC_SOURCE = """\
--- ── Unified webhook table — all fleet message types ──────────────────────────
--- The Python proxy HTTP POSTs each message to this webhook endpoint and injects
--- the Solace topic + sender timestamp as HTTP headers.  INCLUDE header captures
--- them as first-class VARCHAR columns (_topic, _timestamp).
--- Endpoint: http://risingwave:4560/webhook/dev/public/fleet_all_raw
-CREATE TABLE fleet_all_raw (
-    data JSONB
+-- ── Solace source connectors — direct queue binding via SMF ──────────────────
+-- Three SOURCEs bind to separate Solace queues — one per message schema.
+-- Each SOURCE uses typed columns that match the flat JSON payload published
+-- to that queue.  No JSONB extraction needed in routing MVs.
+-- Metadata columns capture the Solace destination topic and sender timestamp
+-- directly from the message envelope — no proxy or webhook required.
+
+CREATE SOURCE fleet_ingest_telemetry (
+    vehicle_id      VARCHAR,
+    speed           DOUBLE PRECISION,
+    fuel_level      DOUBLE PRECISION,
+    engine_temp     DOUBLE PRECISION,
+    tire_pressure   DOUBLE PRECISION,
+    battery_voltage DOUBLE PRECISION,
+    latitude        DOUBLE PRECISION,
+    longitude       DOUBLE PRECISION
 )
-INCLUDE header 'x-message-topic'     VARCHAR AS _topic
-INCLUDE header 'x-message-timestamp' VARCHAR AS _timestamp
+INCLUDE destination AS _rw_solace_destination
+INCLUDE timestamp   AS _rw_solace_timestamp
 WITH (
-    connector = 'webhook'
-);""".rstrip()
+    connector            = 'solace',
+    "solace.url"         = 'tcp://solace:55555',
+    "solace.queue"       = 'rw-ingest',
+    "solace.vpn_name"    = 'streaming-poc',
+    "solace.username"    = 'streaming-user',
+    "solace.password"    = 'default',
+    "solace.ack_mode"    = 'checkpoint'
+)
+FORMAT PLAIN ENCODE JSON;
+
+CREATE SOURCE fleet_ingest_events (
+    vehicle_id  VARCHAR,
+    event_type  VARCHAR,
+    severity    VARCHAR,
+    description VARCHAR,
+    payload     JSONB
+)
+INCLUDE destination AS _rw_solace_destination
+INCLUDE timestamp   AS _rw_solace_timestamp
+WITH (
+    connector            = 'solace',
+    "solace.url"         = 'tcp://solace:55555',
+    "solace.queue"       = 'events-ingest',
+    "solace.vpn_name"    = 'streaming-poc',
+    "solace.username"    = 'streaming-user',
+    "solace.password"    = 'default',
+    "solace.ack_mode"    = 'checkpoint'
+)
+FORMAT PLAIN ENCODE JSON;
+
+CREATE SOURCE fleet_ingest_commands (
+    vehicle_id   VARCHAR,
+    command_type VARCHAR,
+    parameters   JSONB,
+    issued_by    VARCHAR
+)
+INCLUDE destination AS _rw_solace_destination
+INCLUDE timestamp   AS _rw_solace_timestamp
+WITH (
+    connector            = 'solace',
+    "solace.url"         = 'tcp://solace:55555',
+    "solace.queue"       = 'commands-ingest',
+    "solace.vpn_name"    = 'streaming-poc',
+    "solace.username"    = 'streaming-user',
+    "solace.password"    = 'default',
+    "solace.ack_mode"    = 'checkpoint'
+)
+FORMAT PLAIN ENCODE JSON;""".rstrip()
 
 STATIC_BRANCH_MVS = """\
--- ── Branch routing views — extract typed columns from raw JSONB ──────────────
--- These views are the base sources for all analytics MVs.
--- Each filters by _topic (from INCLUDE header) and casts JSON fields to typed columns.
--- The _topic column is aliased as solace_topic so downstream MVs need no changes.
--- The _timestamp column (Solace sender timestamp) replaces body timestamps.
+-- ── Routing views — alias metadata columns for downstream compatibility ───────
+-- Each SOURCE has typed columns matching its queue's flat JSON schema.
+-- These MVs add human-readable column aliases for the metadata fields:
+--   _rw_solace_destination  → solace_topic
+--   _rw_solace_timestamp    → recorded_at / occurred_at / issued_at
+-- No JSONB extraction needed — all payload fields are already typed in SOURCE.
 
 CREATE MATERIALIZED VIEW fleet_telemetry_raw AS
 SELECT
-    (data->>'vehicle_id')       ::VARCHAR          AS vehicle_id,
-    (data->>'speed')            ::DOUBLE PRECISION AS speed,
-    (data->>'fuel_level')       ::DOUBLE PRECISION AS fuel_level,
-    (data->>'engine_temp')      ::DOUBLE PRECISION AS engine_temp,
-    (data->>'tire_pressure')    ::DOUBLE PRECISION AS tire_pressure,
-    (data->>'battery_voltage')  ::DOUBLE PRECISION AS battery_voltage,
-    (data->>'latitude')         ::DOUBLE PRECISION AS latitude,
-    (data->>'longitude')        ::DOUBLE PRECISION AS longitude,
-    _timestamp                  ::TIMESTAMPTZ      AS recorded_at,
-    _topic                                         AS solace_topic
-FROM   fleet_all_raw
-WHERE  _topic LIKE 'fleet/telemetry/%';
+    vehicle_id,
+    speed,
+    fuel_level,
+    engine_temp,
+    tire_pressure,
+    battery_voltage,
+    latitude,
+    longitude,
+    _rw_solace_timestamp   AS recorded_at,
+    _rw_solace_destination AS solace_topic
+FROM   fleet_ingest_telemetry;
 
 CREATE MATERIALIZED VIEW fleet_events_raw AS
 SELECT
-    (data->>'vehicle_id')   ::VARCHAR          AS vehicle_id,
-    (data->>'event_type')   ::VARCHAR          AS event_type,
-    (data->>'severity')     ::VARCHAR          AS severity,
-    (data->>'description')  ::VARCHAR          AS description,
-    (data->'payload')                          AS payload,
-    _timestamp              ::TIMESTAMPTZ      AS occurred_at,
-    _topic                                     AS solace_topic
-FROM   fleet_all_raw
-WHERE  _topic LIKE 'fleet/events/%';
+    vehicle_id,
+    event_type,
+    severity,
+    description,
+    payload,
+    _rw_solace_timestamp   AS occurred_at,
+    _rw_solace_destination AS solace_topic
+FROM   fleet_ingest_events;
 
 CREATE MATERIALIZED VIEW fleet_commands_raw AS
 SELECT
-    (data->>'vehicle_id')   ::VARCHAR          AS vehicle_id,
-    (data->>'command_type') ::VARCHAR          AS command_type,
-    (data->'parameters')                       AS parameters,
-    _timestamp              ::TIMESTAMPTZ      AS issued_at,
-    (data->>'issued_by')    ::VARCHAR          AS issued_by,
-    _topic                                     AS solace_topic
-FROM   fleet_all_raw
-WHERE  _topic LIKE 'fleet/commands/%';""".rstrip()
+    vehicle_id,
+    command_type,
+    parameters,
+    _rw_solace_timestamp   AS issued_at,
+    issued_by,
+    _rw_solace_destination AS solace_topic
+FROM   fleet_ingest_commands;""".rstrip()
 
 STATIC_ANALYTICS_MVS = """\
 -- =============================================================================
@@ -485,7 +539,9 @@ def main() -> None:
         for n in BRANCH_MV_NAMES:
             drop_lines.append(f"DROP MATERIALIZED VIEW IF EXISTS {n:<36} CASCADE;")
         drop_lines += [
-            "DROP TABLE  IF EXISTS fleet_all_raw             CASCADE;",
+            "DROP SOURCE IF EXISTS fleet_ingest_telemetry     CASCADE;",
+            "DROP SOURCE IF EXISTS fleet_ingest_events        CASCADE;",
+            "DROP SOURCE IF EXISTS fleet_ingest_commands      CASCADE;",
         ]
         drop_section = (
             "-- ── Tear down previous objects (safe to re-run) "
@@ -604,7 +660,9 @@ def main() -> None:
     for n in BRANCH_MV_NAMES:
         drop_lines.append(f"DROP MATERIALIZED VIEW IF EXISTS {n:<36} CASCADE;")
     drop_lines += [
-        "DROP TABLE  IF EXISTS fleet_all_raw             CASCADE;",
+        "DROP SOURCE IF EXISTS fleet_ingest_telemetry     CASCADE;",
+        "DROP SOURCE IF EXISTS fleet_ingest_events        CASCADE;",
+        "DROP SOURCE IF EXISTS fleet_ingest_commands      CASCADE;",
     ]
 
     drop_section = (
