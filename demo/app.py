@@ -31,6 +31,11 @@ from pydantic import BaseModel
 import anthropic
 from dotenv import load_dotenv
 
+# Add project root to path for backfill module
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from backfill.status import check_backfill_status
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s  %(message)s")
@@ -303,7 +308,8 @@ When answering:
 - Be concise — operators need fast answers, not essays
 - Reference specific vehicle IDs, numbers, and timestamps from tool results
 - When you see a concerning pattern (e.g. a vehicle appearing in multiple alert types), surface it
-- Note when data is from the live stack vs simulated demo data (the tool results will indicate this)"""
+- Note when data is from the live stack vs simulated demo data (the tool results will indicate this)
+- If tool results include a backfill_ready=false indicator, note that historical data is still being loaded and results may be incomplete"""
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
@@ -317,17 +323,25 @@ async def root():
     return html_path.read_text()
 
 
+@app.get("/backfill-status")
+async def backfill_status():
+    """Check connector backfill readiness from rw_solace_connector_status table."""
+    return check_backfill_status(rw_host=RW_HOST, rw_port=RW_PORT)
+
+
 @app.get("/fleet-stats")
 async def fleet_stats():
     """Live fleet summary for the header stats bar."""
     rows, is_live = run_tool("get_fleet_alert_summary", {})
     stats = {r["severity"]: r for r in rows if "error" not in r}
+    bf = check_backfill_status(rw_host=RW_HOST, rw_port=RW_PORT)
     return {
         "high":      stats.get("high",   {}).get("alert_count", 0),
         "medium":    stats.get("medium", {}).get("alert_count", 0),
         "low":       stats.get("low",    {}).get("alert_count", 0),
         "vehicles":  NUM_VEHICLES,
         "live":      is_live,
+        "backfill_ready": bf["ready"],
     }
 
 

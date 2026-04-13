@@ -250,12 +250,63 @@ solace-streaming-arch/
 │   ├── index.html                    Fleet Operations AI single-page UI
 │   ├── Dockerfile
 │   └── requirements.txt
-└── tryme/
-    ├── server.py                     FastAPI backend for Solace+ Try Me: SSE subscribe, publish, topic registry
-    ├── index.html                    Solace+ Try Me UI — pub/sub with history replay
-    ├── Dockerfile
-    └── requirements.txt
+├── tryme/
+│   ├── server.py                     FastAPI backend for Solace+ Try Me: SSE subscribe, publish, topic registry
+│   ├── index.html                    Solace+ Try Me UI — pub/sub with history replay
+│   ├── Dockerfile
+│   └── requirements.txt
+└── backfill/
+    ├── query_client.py               Event-driven RisingWave client with backfill-aware readiness
+    ├── publish_sentinel.py           Publishes sentinel boundary marker to Solace
+    ├── monitor_queue.py              SEMP queue depth monitor for backfill progress
+    ├── status.py                     Lightweight readiness checker (used by Try Me + Fleet Agent)
+    ├── backfill_and_go.sh            End-to-end backfill orchestration script
+    ├── requirements.txt
+    ├── CONNECTOR_DESIGN.md           Original design spec for connector-side implementation
+    └── risingwave/
+        └── init.sql                  Reference schema for backfill pattern
 ```
+
+---
+
+## Historical Backfill
+
+The `backfill/` module implements event-driven historical data replay. When RisingWave needs
+to catch up on events that accumulated in a Solace queue while it was offline, this system
+coordinates the transition from historical to live data:
+
+1. **Sentinel publisher** marks the boundary between historical and live events using a Solace
+   user property (`x-solace-sentinel`), not payload content
+2. **Connector** (when backfill-aware) intercepts the sentinel, triggers a barrier flush, and
+   publishes a readiness event to Solace
+3. **Consumers** subscribe to the readiness event for instant notification; late joiners check a
+   status table once on startup
+
+```bash
+# Full orchestration
+bash backfill/backfill_and_go.sh
+
+# Or step by step:
+python3 backfill/publish_sentinel.py          # Mark boundary
+psql ... -f backfill/risingwave/init.sql      # Create schema (starts connector)
+python3 backfill/monitor_queue.py             # Watch progress (optional)
+```
+
+Consumer code:
+
+```python
+from backfill.query_client import RisingWaveClient
+
+with RisingWaveClient() as client:
+    client.wait_for_ready()  # Blocks until connector signals readiness
+    rows = client.query("SELECT * FROM high_severity_alerts LIMIT 10")
+```
+
+Both the Fleet Agent UI and Try Me UI check backfill readiness automatically via
+`/backfill-status` endpoints and show status indicators during backfill.
+
+For full developer documentation, see `CLAUDE.md`. For the original connector design spec,
+see `backfill/CONNECTOR_DESIGN.md`.
 
 ---
 

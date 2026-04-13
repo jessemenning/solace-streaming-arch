@@ -33,9 +33,9 @@ fi
 echo "==> All services stopped."
 echo ""
 if [ "$KEEP_VOLUMES" = true ]; then
-    echo "NOTE: Volumes (solace-data, redpanda-data) preserved."
+    echo "NOTE: Volume (solace-data) preserved."
     echo "      Next run will resume from existing data."
 else
-    echo "NOTE: Volumes (solace-data, redpanda-data) deleted. Next run starts fresh."
+    echo "NOTE: Volume (solace-data) deleted. Next run starts fresh."
     echo "      To preserve volumes instead, run: $0 --keep-volumes"
 fi

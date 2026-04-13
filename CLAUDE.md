@@ -182,6 +182,14 @@ Note: use `up -d` (not `restart`) after a rebuild — `restart` reuses the old c
 | `tryme/requirements.txt` | `fastapi`, `uvicorn`, `psycopg2-binary`, `solace-pubsubplus`, `pyyaml`, `python-dotenv` |
 | `tryme/Dockerfile` | Python 3.11-slim; exposes port 8091 |
 | `.env.template` | Committed placeholder — copy to `.env` at project root and fill in credentials |
+| `backfill/query_client.py` | `RisingWaveClient` — event-driven, backfill-aware query client; waits for connector readiness via Solace event or status table fallback |
+| `backfill/publish_sentinel.py` | Publishes sentinel message with `x-solace-sentinel` user property to mark historical/live boundary |
+| `backfill/monitor_queue.py` | SEMP v2 queue depth monitor for backfill progress observability |
+| `backfill/status.py` | Lightweight status checker — reads `rw_solace_connector_status` table; used by Try Me and Fleet Agent UIs |
+| `backfill/backfill_and_go.sh` | End-to-end backfill orchestrator: publish sentinel → create schema → wait for readiness → verify |
+| `backfill/risingwave/init.sql` | Reference schema for backfill pattern (unified `solace_events` source + clean business MVs, no sentinel filters) |
+| `backfill/CONNECTOR_DESIGN.md` | Design reference for connector-side sentinel detection, barrier flush, and readiness event — implemented in `~/risingwave/src/connector/src/source/solace/` |
+| `backfill/requirements.txt` | Backfill module dependencies |
 
 ---
 
@@ -379,6 +387,68 @@ solace+ env vars (override defaults via `.env` or export):
 - ACK mode: `checkpoint` — messages ACKed only after RisingWave checkpoint (exactly-once)
 - Queue hardening: `maxRedeliveryCount: 3` moves stuck messages to the named DMQ after 3 failed deliveries; `maxTtl: 300` (5 min) + `respectTtlEnabled: true` auto-expires old messages
 - Metadata from message envelope: `_rw_solace_destination` (topic), `_rw_solace_timestamp` (connector processing time — `SystemTime::now()` fallback since the Python Messaging API has no sender-timestamp setter)
+
+---
+
+## Historical Backfill Pattern
+
+The `backfill/` directory implements an event-driven historical backfill and live cutover system.
+All correctness logic lives in the connector — consumers are simple.
+
+### How it works
+
+1. Historical events accumulate in a durable Solace queue while RisingWave is offline
+2. A **sentinel message** (identified by Solace user property `x-solace-sentinel = backfill-complete`)
+   is published at the tail of the queue to mark the historical/live boundary
+3. The connector consumes the queue in FIFO order, emitting business events to the source table
+4. When the connector detects the sentinel, it **intercepts it** (never emits to source table),
+   triggers a barrier flush (`WAIT`), writes `rw_solace_connector_status`, and publishes a
+   readiness event to `system/risingwave/connector/{name}/ready`
+5. Consumers subscribe to the readiness event (instant notification, no polling); late joiners
+   check the status table once on startup
+
+### Key design principles
+
+- **Smart connector, simple consumer**: sentinel detection, barrier flush, readiness signal all
+  happen in the connector. Consumers just subscribe and react.
+- **Event-driven readiness**: consumers get notified via Solace event in milliseconds. No polling
+  loop, no RisingWave query load while waiting.
+- **Defense in depth**: status table is a fallback for consumers that start after the readiness event.
+- **Clean business views**: sentinel never reaches the source table, so MVs need zero sentinel filters.
+
+### Backfill commands
+
+```bash
+# Publish sentinel (after historical data accumulated, before starting connector)
+python3 backfill/publish_sentinel.py
+
+# Full orchestration (sentinel → schema → wait → verify)
+bash backfill/backfill_and_go.sh
+
+# Monitor queue depth during backfill (observability)
+python3 backfill/monitor_queue.py
+```
+
+### Consumer usage (Python)
+
+```python
+from backfill.query_client import RisingWaveClient
+
+with RisingWaveClient() as client:
+    client.wait_for_ready()  # blocks until readiness event or status table
+    rows = client.query("SELECT * FROM high_severity_alerts LIMIT 10")
+```
+
+### Connector-side implementation
+
+Implemented in `~/risingwave/src/connector/src/source/solace/`. Key files:
+
+- `source/message.rs` — `SolaceMessage::is_sentinel()` detects `x-solace-sentinel = backfill-complete` user property; user properties extracted via `get_user_properties()`
+- `split.rs` — `SolaceSplit` checkpoint state carries `sentinel_detected` + `sentinel_detected_at` (backward-compatible via `#[serde(default)]`)
+- `mod.rs` — `SolaceProperties` has optional `solace.sentinel_readiness_topic` config key
+- `source/reader.rs` — `into_data_stream()` intercepts sentinel: acks it, writes `rw_solace_connector_status` via `tokio_postgres`, publishes readiness event back to Solace; on restart re-publishes if `sentinel_detected = true` from checkpoint
+
+See `backfill/CONNECTOR_DESIGN.md` for the original design spec.
 
 ---
 
