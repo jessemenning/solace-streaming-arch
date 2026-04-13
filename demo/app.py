@@ -356,77 +356,90 @@ async def chat(req: ChatRequest):
     async def generate():
         nonlocal messages
 
-        while True:
-            collected_content: list[dict] = []
-            tool_calls: list[dict] = []
-            current_tool: dict | None = None
-            current_input_buf = ""
+        try:
+            while True:
+                collected_content: list[dict] = []
+                tool_calls: list[dict] = []
+                current_tool: dict | None = None
+                current_input_buf = ""
 
-            with client.messages.stream(
-                model=MODEL,
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                tools=TOOLS,
-                messages=messages,
-            ) as stream:
-                for event in stream:
-                    etype = event.type
+                with client.messages.stream(
+                    model=MODEL,
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    tools=TOOLS,
+                    messages=messages,
+                ) as stream:
+                    for event in stream:
+                        etype = event.type
 
-                    if etype == "content_block_start":
-                        block = event.content_block
-                        if block.type == "text":
-                            collected_content.append({"type": "text", "text": ""})
-                        elif block.type == "tool_use":
-                            current_tool = {"id": block.id, "name": block.name, "input": {}}
-                            current_input_buf = ""
-                            yield f"data: {json.dumps({'type': 'tool_start', 'name': block.name})}\n\n"
+                        if etype == "content_block_start":
+                            block = event.content_block
+                            if block.type == "text":
+                                collected_content.append({"type": "text", "text": ""})
+                            elif block.type == "tool_use":
+                                current_tool = {"id": block.id, "name": block.name, "input": {}}
+                                current_input_buf = ""
+                                yield f"data: {json.dumps({'type': 'tool_start', 'name': block.name})}\n\n"
 
-                    elif etype == "content_block_delta":
-                        delta = event.delta
-                        if delta.type == "text_delta":
-                            text = delta.text
-                            if collected_content and collected_content[-1]["type"] == "text":
-                                collected_content[-1]["text"] += text
-                            yield f"data: {json.dumps({'type': 'text', 'content': text})}\n\n"
-                        elif delta.type == "input_json_delta":
-                            current_input_buf += delta.partial_json
+                        elif etype == "content_block_delta":
+                            delta = event.delta
+                            if delta.type == "text_delta":
+                                text = delta.text
+                                if collected_content and collected_content[-1]["type"] == "text":
+                                    collected_content[-1]["text"] += text
+                                yield f"data: {json.dumps({'type': 'text', 'content': text})}\n\n"
+                            elif delta.type == "input_json_delta":
+                                current_input_buf += delta.partial_json
 
-                    elif etype == "content_block_stop":
-                        if current_tool is not None:
-                            try:
-                                current_tool["input"] = json.loads(current_input_buf) if current_input_buf else {}
-                            except Exception:
-                                current_tool["input"] = {}
-                            tool_calls.append(dict(current_tool))
-                            collected_content.append({
-                                "type": "tool_use",
-                                "id": current_tool["id"],
-                                "name": current_tool["name"],
-                                "input": current_tool["input"],
-                            })
-                            current_tool = None
-                            current_input_buf = ""
+                        elif etype == "content_block_stop":
+                            if current_tool is not None:
+                                try:
+                                    current_tool["input"] = json.loads(current_input_buf) if current_input_buf else {}
+                                except Exception:
+                                    current_tool["input"] = {}
+                                tool_calls.append(dict(current_tool))
+                                collected_content.append({
+                                    "type": "tool_use",
+                                    "id": current_tool["id"],
+                                    "name": current_tool["name"],
+                                    "input": current_tool["input"],
+                                })
+                                current_tool = None
+                                current_input_buf = ""
 
-            # Append assistant turn
-            messages = messages + [{"role": "assistant", "content": collected_content}]
+                # Append assistant turn
+                messages = messages + [{"role": "assistant", "content": collected_content}]
 
-            if not tool_calls:
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                break
+                if not tool_calls:
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    break
 
-            # Execute tools and stream results to frontend
-            tool_results = []
-            for tc in tool_calls:
-                data, is_live = run_tool(tc["name"], tc["input"])
-                result_str = json.dumps(data, default=json_default)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tc["id"],
-                    "content": result_str,
-                })
-                yield f"data: {json.dumps({'type': 'tool_result', 'name': tc['name'], 'input': tc['input'], 'rows': data, 'live': is_live}, default=json_default)}\n\n"
+                # Execute tools and stream results to frontend
+                tool_results = []
+                for tc in tool_calls:
+                    data, is_live = run_tool(tc["name"], tc["input"])
+                    result_str = json.dumps(data, default=json_default)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tc["id"],
+                        "content": result_str,
+                    })
+                    yield f"data: {json.dumps({'type': 'tool_result', 'name': tc['name'], 'input': tc['input'], 'rows': data, 'live': is_live}, default=json_default)}\n\n"
 
-            messages = messages + [{"role": "user", "content": tool_results}]
+                messages = messages + [{"role": "user", "content": tool_results}]
+
+        except anthropic.BadRequestError as exc:
+            msg = str(exc)
+            if "budget_exceeded" in msg or "Budget has been exceeded" in msg:
+                yield f"data: {json.dumps({'type': 'error', 'content': 'API budget limit reached. Please check your Anthropic account billing.'})}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'content': f'API error: {exc.message}'})}\n\n"
+        except anthropic.AuthenticationError:
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Invalid API key. Check ANTHROPIC_API_KEY in your .env file.'})}\n\n"
+        except Exception as exc:
+            logger.exception("Unhandled error in chat stream")
+            yield f"data: {json.dumps({'type': 'error', 'content': f'Unexpected error: {exc}'})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

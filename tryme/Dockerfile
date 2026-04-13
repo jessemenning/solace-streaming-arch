@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY tryme/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy server and UI
-COPY server.py index.html ./
+COPY tryme/server.py tryme/index.html ./
+COPY backfill ./backfill
 
 # Registry is mounted from project root at runtime via volume
 # (config/topic-mv-registry.yaml → /app/config/topic-mv-registry.yaml)
