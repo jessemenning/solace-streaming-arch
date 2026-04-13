@@ -43,10 +43,10 @@ services:
   # ─── RisingWave (streaming SQL materialized views) ────────────────────────
   # Connects directly to Solace queues via the native Solace source connector.
   # No webhook or proxy required — SMF protocol, ACK on checkpoint.
-  # Uses a custom binary from ~/risingwave (branch feat/solace-source-connector)
-  # because the Solace connector has not been merged upstream yet.
+  # Custom image includes the Solace connector (not yet merged upstream).
+  # Source: https://github.com/jessemenning/risingwave (branch feat/solace-source-connector)
   risingwave:
-    image: risingwavelabs/risingwave:latest
+    image: ghcr.io/jessemenning/risingwave:solace-connector
     container_name: risingwave
     hostname: risingwave
     networks:
@@ -54,8 +54,9 @@ services:
     ports:
       - "4566:4566" # Frontend SQL (Postgres wire protocol)
       - "5691:5691" # Dashboard / metadata
-    volumes:
-      - /home/jmenning/risingwave/target/debug/risingwave-stripped:/risingwave/bin/risingwave
+    # WARNING: 'playground' mode is stateless — all sources and MVs are lost on
+    # container restart.  After any restart, re-run:
+    #   psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
     command: playground
     healthcheck:
       test:
@@ -168,3 +169,21 @@ services:
       risingwave:
         condition: service_healthy
     restart: "no"
+
+  # ─── RisingWave schema watchdog ────────────────────────────────────────────
+  # RisingWave playground mode is stateless — all views are lost on restart.
+  # This sidecar re-applies init.sql automatically whenever views go missing.
+  rw-init:
+    image: postgres:16-alpine
+    container_name: rw-init
+    networks:
+      - streaming-net
+    volumes:
+      - ./config/risingwave/init.sql:/init.sql:ro
+      - ./config/risingwave/init-watchdog.sh:/init-watchdog.sh:ro
+    entrypoint: sh /init-watchdog.sh
+    depends_on:
+      risingwave:
+        condition: service_healthy
+    restart: unless-stopped
+
