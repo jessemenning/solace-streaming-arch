@@ -8,4 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY generator.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
+RUN useradd -m -u 1000 app && chown -R app:app /app
+USER app
+
 ENTRYPOINT ["./entrypoint.sh"]

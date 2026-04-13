@@ -11,4 +11,7 @@ RUN mkdir -p config/risingwave
 COPY create_ep_objects.sh generate_mvs.py config/ep-setup/entrypoint.sh ./
 RUN chmod +x create_ep_objects.sh entrypoint.sh
 
+RUN useradd -m -u 1000 app && chown -R app:app /app
+USER app
+
 ENTRYPOINT ["./entrypoint.sh"]

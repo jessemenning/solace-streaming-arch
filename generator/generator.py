@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import math
 import os
 import random
@@ -27,6 +28,9 @@ import time
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Optional
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s  %(message)s")
+logger = logging.getLogger("generator")
 
 from solace.messaging.messaging_service import MessagingService
 from solace.messaging.resources.topic import Topic

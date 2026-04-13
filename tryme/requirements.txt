@@ -1,6 +1,6 @@
-fastapi
-uvicorn[standard]
-psycopg2-binary
-solace-pubsubplus
-pyyaml
-python-dotenv
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+psycopg2-binary==2.9.9
+solace-pubsubplus>=1.8.0
+pyyaml==6.0.2
+python-dotenv==1.0.1

@@ -864,7 +864,7 @@ async function sendMessage() {
             agentBubble = addAgentMessageEl();
           }
           agentText += evt.content;
-          agentBubble.innerHTML = '<p>' + renderMarkdown(agentText) + '</p>';
+          agentBubble.innerHTML = '<p>' + renderMarkdown(escHtml(agentText)) + '</p>';
           scrollToBottom();
 
         } else if (evt.type === 'tool_start') {

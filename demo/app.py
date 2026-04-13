@@ -13,14 +13,16 @@ Usage:
     uvicorn app:app --reload --port 8090
 """
 
+import logging
 import os
 import json
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
 import psycopg2
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -30,6 +32,9 @@ import anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s  %(message)s")
+logger = logging.getLogger("fleet-agent")
 
 
 def json_default(obj):
@@ -45,7 +50,7 @@ RW_HOST = os.environ.get("RW_HOST", "localhost")
 RW_PORT = int(os.environ.get("RW_PORT", "4566"))
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "").strip() or None
-MODEL = "claude-sonnet-4-6"
+MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 
 
 def make_anthropic_client() -> anthropic.Anthropic:
@@ -59,6 +64,10 @@ app = FastAPI(title="Fleet Operations AI")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # ── Mock data (used when RisingWave is not reachable) ─────────────────────────
+def _recent(minutes_ago: int) -> str:
+    """Return an ISO timestamp `minutes_ago` minutes in the past (for mock data freshness)."""
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat()
+
 MOCK = {
     "fleet_alert_summary": [
         {"severity": "high",   "alert_count": 14, "affected_vehicles": 9},
@@ -66,29 +75,29 @@ MOCK = {
         {"severity": "low",    "alert_count":  5, "affected_vehicles": 4},
     ],
     "high_severity_alerts": [
-        {"vehicle_id": "vehicle_005", "event_type": "high_engine_temp",      "description": "Engine temperature exceeded 240°F",         "occurred_at": "2024-01-15T14:32:11Z"},
-        {"vehicle_id": "vehicle_012", "event_type": "tire_pressure_warning", "description": "Front-left tire pressure dropped to 24 PSI", "occurred_at": "2024-01-15T14:31:55Z"},
-        {"vehicle_id": "vehicle_018", "event_type": "high_engine_temp",      "description": "Engine temperature exceeded 235°F",         "occurred_at": "2024-01-15T14:30:42Z"},
-        {"vehicle_id": "vehicle_005", "event_type": "speed_limit_exceeded",  "description": "Speed reached 92 mph (limit: 75 mph)",       "occurred_at": "2024-01-15T14:29:18Z"},
-        {"vehicle_id": "vehicle_007", "event_type": "battery_voltage_low",   "description": "Battery voltage dropped to 11.2V",           "occurred_at": "2024-01-15T14:28:05Z"},
+        {"vehicle_id": "vehicle_005", "event_type": "high_engine_temp",      "description": "Engine temperature exceeded 240°F",         "occurred_at": _recent(5)},
+        {"vehicle_id": "vehicle_012", "event_type": "tire_pressure_warning", "description": "Front-left tire pressure dropped to 24 PSI", "occurred_at": _recent(6)},
+        {"vehicle_id": "vehicle_018", "event_type": "high_engine_temp",      "description": "Engine temperature exceeded 235°F",         "occurred_at": _recent(7)},
+        {"vehicle_id": "vehicle_005", "event_type": "speed_limit_exceeded",  "description": "Speed reached 92 mph (limit: 75 mph)",       "occurred_at": _recent(8)},
+        {"vehicle_id": "vehicle_007", "event_type": "battery_voltage_low",   "description": "Battery voltage dropped to 11.2V",           "occurred_at": _recent(9)},
     ],
     "vehicle_speed_5min_avg": [
-        {"vehicle_id": "vehicle_001", "avg_mph": 58.3, "max_mph": 71.0, "sample_count": 30, "window_end": "2024-01-15T14:30:00Z"},
-        {"vehicle_id": "vehicle_002", "avg_mph": 62.1, "max_mph": 68.5, "sample_count": 29, "window_end": "2024-01-15T14:30:00Z"},
-        {"vehicle_id": "vehicle_005", "avg_mph": 79.4, "max_mph": 92.0, "sample_count": 31, "window_end": "2024-01-15T14:30:00Z"},
-        {"vehicle_id": "vehicle_012", "avg_mph": 45.2, "max_mph": 55.0, "sample_count": 28, "window_end": "2024-01-15T14:30:00Z"},
-        {"vehicle_id": "vehicle_018", "avg_mph": 67.8, "max_mph": 74.0, "sample_count": 30, "window_end": "2024-01-15T14:30:00Z"},
+        {"vehicle_id": "vehicle_001", "avg_mph": 58.3, "max_mph": 71.0, "sample_count": 30, "window_end": _recent(2)},
+        {"vehicle_id": "vehicle_002", "avg_mph": 62.1, "max_mph": 68.5, "sample_count": 29, "window_end": _recent(2)},
+        {"vehicle_id": "vehicle_005", "avg_mph": 79.4, "max_mph": 92.0, "sample_count": 31, "window_end": _recent(2)},
+        {"vehicle_id": "vehicle_012", "avg_mph": 45.2, "max_mph": 55.0, "sample_count": 28, "window_end": _recent(2)},
+        {"vehicle_id": "vehicle_018", "avg_mph": 67.8, "max_mph": 74.0, "sample_count": 30, "window_end": _recent(2)},
     ],
     "alerts_with_context": [
         {"vehicle_id": "vehicle_005", "event_type": "high_engine_temp", "severity": "high", "description": "Engine temp 240°F",
-         "alert_time": "2024-01-15T14:32:11Z", "speed": 89.2, "fuel_level": 62.1, "engine_temp": 238.5, "tire_pressure": 32.0, "battery_voltage": 13.1, "time_before_alert": "00:01:45"},
+         "alert_time": _recent(5), "speed": 89.2, "fuel_level": 62.1, "engine_temp": 238.5, "tire_pressure": 32.0, "battery_voltage": 13.1, "time_before_alert": "00:01:45"},
         {"vehicle_id": "vehicle_012", "event_type": "tire_pressure_warning", "severity": "high", "description": "Low tire pressure",
-         "alert_time": "2024-01-15T14:31:55Z", "speed": 48.3, "fuel_level": 71.4, "engine_temp": 198.2, "tire_pressure": 26.1, "battery_voltage": 12.8, "time_before_alert": "00:02:00"},
+         "alert_time": _recent(6), "speed": 48.3, "fuel_level": 71.4, "engine_temp": 198.2, "tire_pressure": 26.1, "battery_voltage": 12.8, "time_before_alert": "00:02:00"},
     ],
     "vehicles_in_region_boston": [
-        {"vehicle_id": "vehicle_003", "lat": 42.3601, "lon": -71.0589, "speed_mph": 28.4, "recorded_at": "2024-01-15T14:32:08Z"},
-        {"vehicle_id": "vehicle_011", "lat": 42.3481, "lon": -71.0812, "speed_mph": 18.2, "recorded_at": "2024-01-15T14:32:01Z"},
-        {"vehicle_id": "vehicle_017", "lat": 42.3315, "lon": -71.0204, "speed_mph": 33.7, "recorded_at": "2024-01-15T14:31:55Z"},
+        {"vehicle_id": "vehicle_003", "lat": 42.3601, "lon": -71.0589, "speed_mph": 28.4, "recorded_at": _recent(3)},
+        {"vehicle_id": "vehicle_011", "lat": 42.3481, "lon": -71.0812, "speed_mph": 18.2, "recorded_at": _recent(4)},
+        {"vehicle_id": "vehicle_017", "lat": 42.3315, "lon": -71.0204, "speed_mph": 33.7, "recorded_at": _recent(5)},
     ],
     "vehicle_event_counts_1h": [
         {"vehicle_id": "vehicle_005", "severity": "high",   "event_count": 7},
@@ -100,22 +109,39 @@ MOCK = {
     ],
 }
 
-# ── RisingWave query helper ───────────────────────────────────────────────────
-def rw_query(sql: str, params=None, limit: int = 20) -> tuple[list[dict], bool]:
-    """Returns (rows, is_live). Falls back to mock data on connection failure."""
-    try:
-        conn = psycopg2.connect(
+# ── RisingWave connection pool ────────────────────────────────────────────────
+_rw_pool = None
+
+def _get_pool():
+    global _rw_pool
+    if _rw_pool is None:
+        _rw_pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1, maxconn=10,
             host=RW_HOST, port=RW_PORT,
             user="root", database="dev",
-            connect_timeout=2
+            connect_timeout=2,
         )
+    return _rw_pool
+
+
+def rw_query(sql: str, params=None, limit: int = 20) -> tuple[list[dict], bool]:
+    """Returns (rows, is_live). Falls back to mock data on connection failure."""
+    conn = None
+    try:
+        conn = _get_pool().getconn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
             rows = cur.fetchmany(limit)
-        conn.close()
         return ([dict(r) for r in rows], True)
-    except Exception:
+    except Exception as exc:
+        logger.warning("RisingWave query failed: %s", exc)
         return ([], False)
+    finally:
+        if conn is not None:
+            try:
+                _get_pool().putconn(conn)
+            except Exception:
+                pass
 
 
 def run_tool(name: str, args: dict) -> tuple[list[dict], bool]:

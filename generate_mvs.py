@@ -647,7 +647,7 @@ def main() -> None:
             f"CREATE MATERIALIZED VIEW {name} AS\n"
             f"SELECT {col_list}\n"
             f"FROM   {routing_mv}\n"
-            f"WHERE  solace_topic LIKE '{like_pat}';\n"
+            f"WHERE  solace_topic LIKE '{like_pat.replace(chr(39), chr(39)+chr(39))}';\n"
         )
         ep_mv_blocks.append(block)
 

@@ -12,7 +12,9 @@ Endpoints:
 """
 
 import asyncio
+import atexit
 import json
+import logging
 import os
 import queue
 import re
@@ -34,6 +36,9 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 load_dotenv(Path(__file__).parent.parent / ".env")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s  %(message)s")
+logger = logging.getLogger("tryme")
 
 # ── SDK imports (graceful if not installed) ───────────────────────────────────
 try:
@@ -59,6 +64,7 @@ REGISTRY_PATH = Path(
 )
 
 _executor = ThreadPoolExecutor(max_workers=20)
+atexit.register(_executor.shutdown, wait=False)
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 def _load_registry() -> list[dict]:
@@ -114,11 +120,9 @@ def json_default(obj):
 
 
 def rw_query_history(mv: str, time_col: str, since_interval: str, limit: int = 500) -> list[dict]:
-    sql = (
-        f"SELECT * FROM {mv} "
-        f"WHERE {time_col} > NOW() - INTERVAL '{since_interval}' "
-        f"ORDER BY {time_col} ASC "
-        f"LIMIT {limit}"
+    from psycopg2 import sql as psql
+    query = psql.SQL("SELECT * FROM {} WHERE {} > NOW() - INTERVAL %s ORDER BY {} ASC LIMIT %s").format(
+        psql.Identifier(mv), psql.Identifier(time_col), psql.Identifier(time_col)
     )
     try:
         conn = psycopg2.connect(
@@ -127,12 +131,13 @@ def rw_query_history(mv: str, time_col: str, since_interval: str, limit: int = 5
             connect_timeout=5
         )
         with conn.cursor() as cur:
-            cur.execute(sql)
+            cur.execute(query, (since_interval, limit))
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
         conn.close()
         return rows
     except Exception as e:
+        logger.error("RisingWave query failed: %s", e)
         return [{"_error": str(e)}]
 
 
@@ -276,6 +281,9 @@ _SQL_DENY = re.compile(
 def is_safe_sql(sql: str) -> bool:
     stripped = sql.strip()
     if not stripped.upper().startswith("SELECT"):
+        return False
+    # Block multiple statements (semicolons outside trailing whitespace)
+    if ";" in stripped.rstrip(";"):
         return False
     if _SQL_DENY.search(stripped):
         return False

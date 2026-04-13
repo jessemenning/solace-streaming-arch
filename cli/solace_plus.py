@@ -78,19 +78,22 @@ def get_registry() -> dict:
     return _registry
 
 
+_rw_lock = threading.Lock()
+
 def get_rw_conn():
     global _rw_conn
-    if _rw_conn is None or _rw_conn.closed:
-        rw = get_registry()["risingwave"]
-        _rw_conn = psycopg2.connect(
-            host=rw["host"],
-            port=int(rw.get("port", 4566)),
-            dbname=rw.get("database", "dev"),
-            user=rw.get("user", "root"),
-            password=rw.get("password", ""),
-        )
-        _rw_conn.autocommit = True
-    return _rw_conn
+    with _rw_lock:
+        if _rw_conn is None or _rw_conn.closed:
+            rw = get_registry()["risingwave"]
+            _rw_conn = psycopg2.connect(
+                host=rw["host"],
+                port=int(rw.get("port", 4566)),
+                dbname=rw.get("database", "dev"),
+                user=rw.get("user", "root"),
+                password=rw.get("password", ""),
+            )
+            _rw_conn.autocommit = True
+        return _rw_conn
 
 
 def get_solace_config() -> dict:
@@ -367,7 +370,7 @@ def query(pattern, window, enrich, region, raw_sql, since, limit, fmt):
     time_col = entry.get("time_column")
 
     if window:
-        agg_key = f"window_{window.replace(' ', '').replace('min', 'min')}"
+        agg_key = f"window_{window.replace(' ', '')}"
         agg_map = entry.get("aggregates") or {}
         mv = agg_map.get(agg_key) or next(iter(agg_map.values()), None)
         if not mv:

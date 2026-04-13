@@ -189,6 +189,17 @@ bash config/solace/setup.sh localhost
 # ─── STEP 4: Initialize RisingWave schema ────────────────────────────────────
 log "=== STEP 4: Initializing RisingWave CDC table and materialized views ==="
 
+# Ensure init.sql exists — fall back to the committed default if generate_mvs.py
+# hasn't been run yet (first clone, no EP token).
+if [[ ! -f config/risingwave/init.sql ]]; then
+  if [[ -f config/risingwave/init.sql.default ]]; then
+    log "  init.sql not found — copying from init.sql.default"
+    cp config/risingwave/init.sql.default config/risingwave/init.sql
+  else
+    fail "No init.sql or init.sql.default found in config/risingwave/"
+  fi
+fi
+
 # Generate topic-mv-registry.yaml on the host (read by solace+ CLI).
 # Use EP catalog if SOLACE_CLOUD_TOKEN is set; otherwise generate static mappings only.
 SOLACE_CLOUD_TOKEN="${SOLACE_CLOUD_TOKEN:-$(grep -E '^SOLACE_CLOUD_TOKEN=' .env 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' ')}"
