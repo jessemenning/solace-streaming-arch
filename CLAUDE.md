@@ -154,7 +154,7 @@ Note: use `up -d` (not `restart`) after a rebuild — `restart` reuses the old c
 
 | Path | Purpose |
 |---|---|
-| `docker-compose.yml` | Six services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup |
+| `docker-compose.yml` | Seven services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup, rw-init |
 | `risingwave-solace/Dockerfile` | Custom RisingWave image with Solace connector — published to `ghcr.io/jessemenning/risingwave:solace-connector` |
 | `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, ingest queues `rw-ingest`, `events-ingest`, `commands-ingest`, and DMQs `dlq-telemetry`, `dlq-events`, `dlq-commands` |
 | `create_ep_objects.sh` | **Clean-start** EP setup: deletes any existing "Fleet Operations" domain then recreates all schemas, events, and applications; exits 2 (not 1) if EP is unreachable so callers can fall back gracefully |
@@ -467,3 +467,5 @@ See `backfill/CONNECTOR_DESIGN.md` for the original design spec.
 | Try Me live events show `_raw` with framing bytes | Solace SMF SDK `get_payload_as_bytes()` includes 5-byte protocol header | Fixed: `tryme/server.py` uses `get_payload_as_string()` first |
 | `ep-setup` container shows "statically defined events" warning | Event Portal unreachable or `SOLACE_CLOUD_TOKEN` not set | Expected — stack runs normally on static schema; set token and restart `ep-setup` to add EP catalog objects |
 | `ep-setup` exits with code 2 | EP connectivity check failed (bad token or network) | Check token validity and network; exit 2 is intentional (graceful fallback, not a fatal error) |
+| Fleet Agent chat shows "Connection error: network error" | Anthropic API error before first SSE byte (budget exceeded or bad key) | Check browser console for HTTP status; check server logs for `BadRequestError`/`budget_exceeded`; add Anthropic credits or verify `ANTHROPIC_API_KEY` in `.env` |
+| Fleet Agent chat shows "API budget limit reached" | Anthropic account billing limit hit | Add credits at https://console.anthropic.com; the error is surfaced in the chat UI rather than silently closing the connection |

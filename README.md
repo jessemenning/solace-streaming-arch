@@ -395,5 +395,8 @@ Check `docker logs -f fleet-generator`. The container polls SEMP until the `stre
 **Fleet Agent UI not starting**  
 Ensure `.env` exists at project root with a valid `ANTHROPIC_API_KEY`. Copy from `.env.template` if missing.
 
+**Fleet Agent chat shows "Connection error: network error"**  
+The Anthropic API returned an error before the first SSE byte — typically budget exceeded or an invalid key. The chat UI will show a specific error message. Add Anthropic credits at https://console.anthropic.com or re-check `ANTHROPIC_API_KEY` in `.env`.
+
 **Port conflicts**  
 Default Solace SEMP port 8080 is often in use; this project maps it to 8180. If other ports conflict, edit `docker-compose.yml` port mappings.
