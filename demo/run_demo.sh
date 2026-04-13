@@ -163,8 +163,8 @@ if [[ "${SKIP_BUILD}" == "true" ]]; then
   log "Skipping build (--skip-build set)"
   docker-compose up -d
 else
-  log "Building images (fleet-agent, fleet-generator, tryme)..."
-  docker-compose build fleet-agent fleet-generator tryme
+  log "Building images (fleet-agent, fleet-generator, tryme, ep-setup)..."
+  docker-compose build fleet-agent fleet-generator tryme ep-setup
   docker-compose up -d
 fi
 log "docker-compose started. Waiting for services to become healthy..."

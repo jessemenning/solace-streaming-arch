@@ -909,8 +909,6 @@ async function init() {
     });
     buildTopicChips('subTopicChips', topics.map(t => t.pattern), (p) => {
       document.getElementById('subTopic').value = p;
-      const entry = topics.find(t => t.pattern === p);
-      if (entry && entry.has_history && !histEnabled) toggleHistory();
     });
 
     const durs = cfg.duration_presets || ['15m','30m','1h','4h','24h'];
