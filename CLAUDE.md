@@ -17,7 +17,8 @@ Domain: IoT fleet monitoring — configurable number of simulated vehicles (defa
 
 No Kafka/Redpanda intermediary. RisingWave connects directly to Solace queues via the
 native Solace source connector (SMF protocol). Message envelope metadata (destination topic,
-sender timestamp) is captured as first-class metadata columns — no proxy or webhook required.
+connector processing timestamp) is captured as first-class metadata columns — no proxy or
+webhook required.
 
 ---
 
@@ -29,34 +30,49 @@ RisingWave connects directly to Solace queues using the native Solace source con
 No proxy, webhook, or HTTP intermediary is required. The connector binds to Solace queues
 via the SMF protocol and delivers messages with proper ACK-on-checkpoint semantics.
 
-Two Solace SOURCEs bind to separate queues to prevent head-of-line blocking:
-- `fleet_ingest_telemetry` → `rw-ingest` queue (`fleet/telemetry/>` + `fleet/commands/>`)
+Three Solace SOURCEs bind to separate queues — one per message schema — to prevent
+head-of-line blocking and avoid mixed-schema union columns:
+- `fleet_ingest_telemetry` → `rw-ingest` queue (`fleet/telemetry/>`)
 - `fleet_ingest_events` → `events-ingest` queue (`fleet/events/>`)
+- `fleet_ingest_commands` → `commands-ingest` queue (`fleet/commands/>`)
 
-Metadata columns capture the Solace destination topic and sender timestamp directly from
-the message envelope:
+Each SOURCE uses typed columns that match the flat JSON payload published to that queue.
+No JSONB extraction is needed in routing MVs.
+
+Metadata columns capture the Solace destination topic and message processing timestamp
+directly from the message envelope:
 - `_rw_solace_destination` (VARCHAR) — the Solace topic (e.g. `fleet/telemetry/vehicle_001/metrics`)
-- `_rw_solace_timestamp` (TIMESTAMPTZ) — the sender timestamp
+- `_rw_solace_timestamp` (TIMESTAMPTZ) — connector processing time (`SystemTime::now()` fallback;
+  the Python Messaging API does not expose a sender-timestamp setter and `get_rcv_timestamp()`
+  returns `NotFound` for guaranteed queue messages)
 
-Routing MVs read from their respective source, filter by `_rw_solace_destination LIKE`,
-and alias the metadata columns for downstream compatibility (`solace_topic`, `recorded_at`,
-`occurred_at`, `issued_at`).
+Routing MVs alias the metadata columns for downstream compatibility (`solace_topic`,
+`recorded_at`, `occurred_at`, `issued_at`).
 
 ### Solace SOURCEs and routing MV tree
 
 ```
 fleet_ingest_telemetry (Solace SOURCE — rw-ingest queue)
-  columns: data JSONB, _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
-  ├── fleet_telemetry_raw  (MV — WHERE destination LIKE 'fleet/telemetry/%')
-  └── fleet_commands_raw   (MV — WHERE destination LIKE 'fleet/commands/%')
+  columns: vehicle_id VARCHAR, speed DOUBLE PRECISION, fuel_level DOUBLE PRECISION,
+           engine_temp DOUBLE PRECISION, tire_pressure DOUBLE PRECISION,
+           battery_voltage DOUBLE PRECISION, latitude DOUBLE PRECISION, longitude DOUBLE PRECISION,
+           _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  └── fleet_telemetry_raw  (MV — typed columns aliased: _rw_solace_timestamp → recorded_at)
 
 fleet_ingest_events (Solace SOURCE — events-ingest queue)
-  columns: data JSONB, _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
-  └── fleet_events_raw     (MV — WHERE destination LIKE 'fleet/events/%')
+  columns: vehicle_id VARCHAR, event_type VARCHAR, severity VARCHAR,
+           description VARCHAR, payload JSONB,
+           _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  └── fleet_events_raw     (MV — typed columns aliased: _rw_solace_timestamp → occurred_at)
+
+fleet_ingest_commands (Solace SOURCE — commands-ingest queue)
+  columns: vehicle_id VARCHAR, command_type VARCHAR, parameters JSONB, issued_by VARCHAR,
+           _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  └── fleet_commands_raw   (MV — typed columns aliased: _rw_solace_timestamp → issued_at)
 ```
 
-Analytics MVs build on the routing MVs. TUMBLE windowing uses `fleet_telemetry_raw` (which
-has typed columns extracted from JSONB plus `_rw_solace_timestamp` aliased as `recorded_at`).
+Analytics MVs build on the routing MVs. TUMBLE windowing uses `fleet_telemetry_raw`
+(already typed — no JSONB extraction needed; `recorded_at` is aliased from `_rw_solace_timestamp`).
 
 ### Connector acknowledgment modes
 
@@ -69,13 +85,14 @@ This project uses `checkpoint` mode for exactly-once delivery guarantees.
 ### Clean payloads — no transport metadata in the message body
 
 The generator publishes clean IoT payloads with no transport metadata (`solace_topic`,
-`recorded_at`, `occurred_at` are **not** embedded in the JSON body). The Solace topic and
-sender timestamp travel via the message envelope and are captured by the connector as
-metadata columns (`_rw_solace_destination`, `_rw_solace_timestamp`).
+`recorded_at`, `occurred_at`, timestamps are **not** embedded in the JSON body). The Solace
+topic travels via the message envelope and is captured by the connector as the metadata
+column `_rw_solace_destination`. The processing timestamp is captured as `_rw_solace_timestamp`.
 
 This design decouples the generator from RisingWave's routing layer. The generator only
 needs to publish to the correct Solace topic — it has no knowledge of how downstream
-systems route or timestamp messages.
+systems route or timestamp messages. Never add routing metadata or timestamps to message
+payloads.
 
 ### Custom RisingWave binary — Solace connector not yet upstream
 
@@ -99,14 +116,20 @@ Use an absolute path — snap Docker does not expand `~` correctly.
 **To rebuild after code changes to `~/risingwave/`:**
 ```bash
 cd ~/risingwave
-export PATH="$HOME/.cargo/bin:/tmp/protoc-install/bin:$HOME/.local/bin:$PATH"
-export OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu OPENSSL_INCLUDE_DIR=/usr/include
-export PROTOC=/tmp/protoc-install/bin/protoc
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+export PROTOC=/usr/bin/protoc
+export SOLACE_USE_SYSTEM_SSL=1
+export OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
+export OPENSSL_INCLUDE_DIR=/usr/include
+export OPENSSL_STATIC=0
+RUSTFLAGS="-Ctarget-feature=+avx2 --cfg tokio_unstable -Zhigher-ranked-assumptions -Clink-arg=-fuse-ld=lld -Clink-arg=-Wl,--no-rosegment -Clink-arg=-Wl,--no-as-needed" \
 cargo build -p risingwave_cmd_all --profile dev
 strip -o target/debug/risingwave-stripped target/debug/risingwave
-docker compose restart risingwave
-psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
+docker compose -f ~/solace-streaming-arch/docker-compose.yml up -d risingwave
+psql -h localhost -p 4566 -U root -d dev -f ~/solace-streaming-arch/config/risingwave/init.sql
 ```
+
+Note: use `up -d` (not `restart`) after a rebuild — `restart` reuses the old container image.
 
 **Key code locations in `~/risingwave/`:**
 
@@ -120,7 +143,7 @@ psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 | METADATA FROM key | Default column name | Type | Description |
 |---|---|---|---|
 | `destination` | `_rw_solace_destination` | VARCHAR | Solace destination topic |
-| `timestamp` | `_rw_solace_timestamp` | TIMESTAMPTZ | Sender timestamp |
+| `timestamp` | `_rw_solace_timestamp` | TIMESTAMPTZ | Connector processing time (SystemTime::now(); Python SDK has no sender-timestamp setter) |
 | `replication_group_message_id` | `_rw_solace_replication_group_message_id` | VARCHAR | Broker-assigned unique ID |
 | `correlation_id` | `_rw_solace_correlation_id` | VARCHAR | Correlation identifier |
 | `sequence_number` | `_rw_solace_sequence_number` | BIGINT | Publisher sequence number |
@@ -139,7 +162,7 @@ psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
 | Path | Purpose |
 |---|---|
 | `docker-compose.yml` | Six services: solace, risingwave, fleet-generator, fleet-agent, tryme, ep-setup |
-| `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, queues `rw-ingest` + `events-ingest` (RisingWave Solace connector binds to queues directly) |
+| `config/solace/setup.sh` | SEMP v2 REST: creates VPN, client profile, ACL, user, ingest queues `rw-ingest`, `events-ingest`, `commands-ingest`, and DMQs `dlq-telemetry`, `dlq-events`, `dlq-commands` |
 | `create_ep_objects.sh` | **Clean-start** EP setup: deletes any existing "Fleet Operations" domain then recreates all schemas, events, and applications; exits 2 (not 1) if EP is unreachable so callers can fall back gracefully |
 | `config/ep-setup/entrypoint.sh` | Container entrypoint for `ep-setup` service; runs `create_ep_objects.sh` and captures exit 2 → graceful fallback to `--skip-ep`; emits end-of-run WARNING if EP was unavailable |
 | `generate_mvs.py` | Queries EP catalog → regenerates `config/risingwave/init.sql` and `config/topic-mv-registry.yaml`; `--skip-ep` writes static-only `init.sql` (no EP token required) |
@@ -190,7 +213,7 @@ fleet/commands/{vehicle_id}/{command_type}
 |---|---|---|
 | `fleet_telemetry_raw` | `fleet/telemetry/>` | Routing MV on `fleet_ingest_telemetry`; aliases `_rw_solace_destination` → `solace_topic`, `_rw_solace_timestamp` → `recorded_at` |
 | `fleet_events_raw` | `fleet/events/>` | Routing MV on `fleet_ingest_events`; aliases `_rw_solace_timestamp` → `occurred_at` |
-| `fleet_commands_raw` | `fleet/commands/>` | Routing MV on `fleet_ingest_telemetry`; aliases `_rw_solace_timestamp` → `issued_at` |
+| `fleet_commands_raw` | `fleet/commands/>` | Routing MV on `fleet_ingest_commands`; aliases `_rw_solace_timestamp` → `issued_at` |
 | `high_severity_alerts` | `fleet/events/*/alerts/high` | — |
 | `medium_severity_alerts` | `fleet/events/*/alerts/medium` | — |
 | `low_severity_alerts` | `fleet/events/*/alerts/low` | — |
@@ -352,13 +375,15 @@ solace+ env vars (override defaults via `.env` or export):
 
 ## Solace Connector Notes
 
-- Two Solace SOURCEs bind directly to durable queues via SMF protocol (no proxy)
-- Two queues (both use `permission: "consume"`):
-  - `rw-ingest`: `fleet/telemetry/>` + `fleet/commands/>` — high-volume telemetry
-  - `events-ingest`: `fleet/events/>` — alerts; separate queue prevents head-of-line blocking by telemetry
+- Three Solace SOURCEs bind directly to durable queues via SMF protocol (no proxy)
+- Three ingest queues (all use `permission: "consume"`):
+  - `rw-ingest`: `fleet/telemetry/>` — high-volume telemetry; DMQ: `dlq-telemetry`
+  - `events-ingest`: `fleet/events/>` — alerts; separate queue prevents head-of-line blocking by telemetry; DMQ: `dlq-events`
+  - `commands-ingest`: `fleet/commands/>` — commands; separate schema from telemetry; DMQ: `dlq-commands`
+- Three named dead-message queues (one per ingest queue): `dlq-telemetry`, `dlq-events`, `dlq-commands`
 - ACK mode: `checkpoint` — messages ACKed only after RisingWave checkpoint (exactly-once)
-- Queue hardening: `maxRedeliveryCount: 3` moves stuck messages to `#DEAD_MSG_QUEUE` after 3 failed deliveries; `maxTtl: 300` (5 min) + `respectTtlEnabled: true` auto-expires old messages
-- Metadata from message envelope: `_rw_solace_destination` (topic), `_rw_solace_timestamp` (sender time)
+- Queue hardening: `maxRedeliveryCount: 3` moves stuck messages to the named DMQ after 3 failed deliveries; `maxTtl: 300` (5 min) + `respectTtlEnabled: true` auto-expires old messages
+- Metadata from message envelope: `_rw_solace_destination` (topic), `_rw_solace_timestamp` (connector processing time — `SystemTime::now()` fallback since the Python Messaging API has no sender-timestamp setter)
 
 ---
 

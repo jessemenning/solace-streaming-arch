@@ -45,7 +45,7 @@
 
   <text x="115" y="182" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF" text-anchor="middle">20 vehicles</text>
   <text x="115" y="197" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF" text-anchor="middle">Python 3.13</text>
-  <text x="115" y="212" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF" text-anchor="middle">solace-pubsubplus SDK</text>
+  <text x="115" y="212" font-family="'Figtree','Segoe UI',sans-serif" font-size="11" fill="#FFFFFF" text-anchor="middle">Solace Platform SDK</text>
 
   <text x="115" y="232" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">Port: SMF :55554</text>
 
@@ -93,21 +93,21 @@
 
   <!-- Queue sub-sub-box -->
   <rect x="263" y="354" width="164" height="100" rx="5" fill="#093B5F" stroke="#00C895" stroke-width="1"/>
-  <text x="345" y="371" font-family="'Figtree','Segoe UI',sans-serif" font-weight="bold" font-size="11" fill="#ABFF88" text-anchor="middle">Queue</text>
-  <text x="345" y="386" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895" text-anchor="middle">rw-ingest</text>
+  <text x="345" y="371" font-family="'Figtree','Segoe UI',sans-serif" font-weight="bold" font-size="11" fill="#ABFF88" text-anchor="middle">Queues (per schema)</text>
+  <text x="345" y="386" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895" text-anchor="middle">rw-ingest · events-ingest</text>
   <line x1="271" y1="391" x2="419" y2="391" stroke="#00C895" stroke-width="0.5" opacity="0.5"/>
-  <text x="345" y="405" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">Wildcard subscription:</text>
-  <text x="345" y="420" font-family="'Space Mono','Cascadia Mono',monospace" font-size="10" fill="#ABFF88" text-anchor="middle">fleet/&gt;</text>
-  <text x="345" y="437" font-family="'Figtree','Segoe UI',sans-serif" font-size="9" fill="#C2F7FF" text-anchor="middle">(all fleet messages)</text>
+  <text x="345" y="405" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">Subscriptions:</text>
+  <text x="345" y="420" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#ABFF88" text-anchor="middle">fleet/telemetry/&gt; (+ more)</text>
+  <text x="345" y="437" font-family="'Figtree','Segoe UI',sans-serif" font-size="9" fill="#C2F7FF" text-anchor="middle">commands-ingest: fleet/commands/&gt;</text>
 
-  <!-- RDP sub-sub-box -->
+  <!-- Solace source connector sub-sub-box -->
   <rect x="263" y="468" width="164" height="90" rx="5" fill="#093B5F" stroke="#00C895" stroke-width="1"/>
-  <text x="345" y="485" font-family="'Figtree','Segoe UI',sans-serif" font-weight="bold" font-size="11" fill="#ABFF88" text-anchor="middle">REST Delivery Point</text>
-  <text x="345" y="499" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895" text-anchor="middle">risingwave-rdp</text>
+  <text x="345" y="485" font-family="'Figtree','Segoe UI',sans-serif" font-weight="bold" font-size="11" fill="#ABFF88" text-anchor="middle">Solace Source Connector</text>
+  <text x="345" y="499" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895" text-anchor="middle">native SMF protocol</text>
   <line x1="271" y1="504" x2="419" y2="504" stroke="#00C895" stroke-width="0.5" opacity="0.5"/>
-  <text x="345" y="518" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">REST Consumer:</text>
-  <text x="345" y="532" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#C2F7FF" text-anchor="middle">HTTP POST → :4560</text>
-  <text x="345" y="546" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#C2F7FF" text-anchor="middle">Content-Type: application/json</text>
+  <text x="345" y="518" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">Direct queue binding</text>
+  <text x="345" y="532" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#C2F7FF" text-anchor="middle">ACK mode: checkpoint</text>
+  <text x="345" y="546" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#C2F7FF" text-anchor="middle">(exactly-once semantics)</text>
 
   <!-- ============================================================ -->
   <!-- COLUMN 3: RisingWave (x=480, width=390) -->
@@ -118,13 +118,13 @@
 
   <!-- Port labels -->
   <text x="675" y="180" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">SQL :4566 (psql)</text>
-  <text x="675" y="193" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">webhook :4560 · Dashboard :5691</text>
+  <text x="675" y="193" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">Dashboard :5691</text>
 
-  <!-- Webhook TABLE box -->
+  <!-- Solace SOURCE box -->
   <rect x="493" y="205" width="364" height="55" rx="5" fill="#03213B" stroke="#ABFF88" stroke-width="1.5"/>
-  <text x="675" y="223" font-family="'Figtree','Segoe UI',sans-serif" font-weight="bold" font-size="11" fill="#ABFF88" text-anchor="middle">webhook TABLE: fleet_all_raw</text>
-  <text x="675" y="238" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">connector = 'webhook' · data JSONB · port 4560</text>
-  <text x="675" y="252" font-family="'Figtree','Segoe UI',sans-serif" font-size="9" fill="#FFFFFF" text-anchor="middle" opacity="0.8">solace_topic field embedded in payload — routes all message types</text>
+  <text x="675" y="223" font-family="'Figtree','Segoe UI',sans-serif" font-weight="bold" font-size="11" fill="#ABFF88" text-anchor="middle">Solace SOURCEs: fleet_telemetry_raw / fleet_events_raw / fleet_commands_raw</text>
+  <text x="675" y="238" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">connector = 'solace' · typed columns · SMF protocol</text>
+  <text x="675" y="252" font-family="'Figtree','Segoe UI',sans-serif" font-size="9" fill="#FFFFFF" text-anchor="middle" opacity="0.8">_rw_solace_destination metadata column captures topic — one SOURCE per schema</text>
 
   <!-- Routing MVs label -->
   <text x="675" y="276" font-family="'Figtree','Segoe UI',sans-serif" font-size="10" fill="#ABFF88" text-anchor="middle" font-style="italic">Routing Materialized Views</text>
@@ -174,7 +174,7 @@
   <rect x="500" y="508" width="216" height="22" rx="3" fill="#093B5F" stroke="#ABFF88" stroke-width="0.5"/>
   <text x="608" y="523" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#ABFF88" text-anchor="middle">vehicle_last_known_position</text>
 
-  <text x="608" y="544" font-family="'Figtree','Segoe UI',sans-serif" font-size="8" fill="#C2F7FF" text-anchor="middle">(TUMBLE on fleet_all_raw)</text>
+  <text x="608" y="544" font-family="'Figtree','Segoe UI',sans-serif" font-size="8" fill="#C2F7FF" text-anchor="middle">(TUMBLE on fleet_telemetry_raw)</text>
 
   <rect x="500" y="549" width="216" height="22" rx="3" fill="#093B5F" stroke="#ABFF88" stroke-width="0.5"/>
   <text x="608" y="564" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#ABFF88" text-anchor="middle">alerts_with_context</text>
@@ -250,10 +250,10 @@
   <rect x="210" y="508" width="30" height="14" rx="3" fill="#03213B" opacity="0.75"/>
   <text x="225" y="519" font-family="'Space Mono','Cascadia Mono',monospace" font-size="8" fill="#ABFF88" text-anchor="middle">SMF</text>
 
-  <!-- Solace Platform (RDP) → RisingWave (HTTP POST) -->
+  <!-- Solace Platform → RisingWave (Solace source connector / SMF) -->
   <line x1="450" y1="510" x2="478" y2="510" stroke="#00C895" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <rect x="429" y="496" width="72" height="14" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="465" y="507" font-family="'Space Mono','Cascadia Mono',monospace" font-size="7" fill="#00C895" text-anchor="middle">RDP / HTTP POST</text>
+  <rect x="416" y="496" width="96" height="14" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="465" y="507" font-family="'Space Mono','Cascadia Mono',monospace" font-size="7" fill="#00C895" text-anchor="middle">SMF (source connector)</text>
 
   <!-- RisingWave → Consumers -->
   <line x1="870" y1="350" x2="893" y2="350" stroke="#00C895" stroke-width="2" marker-end="url(#arrow-green)"/>
@@ -285,7 +285,7 @@
 
   <!-- Legend: Primary data flow -->
   <line x1="165" y1="940" x2="205" y2="940" stroke="#00C895" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="210" y="944" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895">Primary data flow (RDP / HTTP POST)</text>
+  <text x="210" y="944" font-family="'Space Mono','Cascadia Mono',monospace" font-size="9" fill="#00C895">Primary data flow (Solace source connector / SMF)</text>
 
   <!-- Legend: Internal/in-process -->
   <line x1="430" y1="940" x2="470" y2="940" stroke="#C2F7FF" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-sky-blue)"/>

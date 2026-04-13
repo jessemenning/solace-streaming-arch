@@ -63,20 +63,20 @@
 
   <!-- Arrow Solace → RDP -->
   <line x1="155" y1="216" x2="155" y2="252" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
-  <rect x="109" y="226" width="92" height="16" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="155" y="238" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">rw-ingest queue</text>
+  <rect x="93" y="226" width="124" height="16" rx="3" fill="#03213B" opacity="0.75"/>
+  <text x="155" y="238" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">3 ingest queues (SMF)</text>
 
   <!-- REST Delivery Point node -->
   <rect x="52" y="252" width="206" height="68" rx="8" fill="#03213B" stroke="#ABFF88" stroke-width="1.5"/>
   <rect x="52" y="252" width="206" height="5" rx="4" fill="#ABFF88"/>
-  <text x="155" y="280" font-family="Figtree, Segoe UI, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">REST Delivery Point</text>
-  <text x="155" y="295" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">built-in Solace feature</text>
-  <text x="155" y="310" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#ABFF88" text-anchor="middle">rw-ingest queue → HTTP POST</text>
+  <text x="155" y="280" font-family="Figtree, Segoe UI, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">Native Solace Connector</text>
+  <text x="155" y="295" font-family="'Courier New', 'Space Mono', monospace" font-size="9.5" fill="#C2F7FF" text-anchor="middle">SMF protocol · direct queue bind</text>
+  <text x="155" y="310" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#ABFF88" text-anchor="middle">rw-ingest · events-ingest · commands-ingest</text>
 
   <!-- Arrow RDP → RisingWave -->
   <line x1="155" y1="320" x2="155" y2="356" stroke="#00C895" stroke-width="2" marker-end="url(#arrowGreen)"/>
   <rect x="101" y="330" width="108" height="16" rx="3" fill="#03213B" opacity="0.75"/>
-  <text x="155" y="342" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">HTTP POST :4560</text>
+  <text x="155" y="342" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#00C895" text-anchor="middle">SMF · typed columns</text>
 
   <!-- RisingWave node -->
   <rect x="52" y="356" width="206" height="68" rx="8" fill="#03213B" stroke="#C2F7FF" stroke-width="1.5"/>
@@ -92,8 +92,8 @@
   <text x="155" y="498" font-family="Figtree, Segoe UI, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">lenses on top of it.</text>
 
   <!-- Panel 1 bottom note -->
-  <text x="155" y="560" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">fleet_all_raw → unified source</text>
-  <text x="155" y="573" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">SQL filters replace topic wildcards</text>
+  <text x="155" y="560" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">fleet_telemetry_raw / fleet_events_raw /</text>
+  <text x="155" y="573" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#C2F7FF" text-anchor="middle">fleet_commands_raw → 3 typed sources</text>
 
 
   <!-- ═══════════════════════════════════════════
@@ -246,5 +246,5 @@
 
   <!-- Bottom footer strip -->
   <line x1="20" y1="584" x2="880" y2="584" stroke="#093B5F" stroke-width="1"/>
-  <text x="450" y="597" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#C2F7FF" text-anchor="middle" opacity="0.7">Solace Platform  ·  REST Delivery Point  ·  RisingWave  —  Fleet Streaming POC</text>
+  <text x="450" y="597" font-family="'Courier New', 'Space Mono', monospace" font-size="8.5" fill="#C2F7FF" text-anchor="middle" opacity="0.7">Solace Platform  ·  Native Solace Connector  ·  RisingWave  —  Fleet Streaming POC</text>
 </svg>

@@ -248,7 +248,9 @@ The native Solace source connector eliminates all of that. RisingWave connects d
 to Solace queues over the SMF protocol — the same protocol Solace uses internally. Message
 metadata (topic, timestamp) arrives natively without HTTP header injection. Delivery is
 exactly-once via checkpoint-based acknowledgment. Backpressure is handled by the protocol
-itself: if RisingWave falls behind, the broker holds messages in the queue. No webhook
+itself: if RisingWave falls behind, the broker holds messages in the queue. Named
+dead-message queues per ingest channel isolate failed messages automatically — no
+application-level retry logic or custom dead-letter routing required. No webhook
 endpoint, no proxy service to operate. (The Solace connector currently requires a custom
 RisingWave build until it is merged upstream — once accepted, the stock image works.)
 

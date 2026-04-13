@@ -12,7 +12,7 @@ This POC demonstrates an alternative: use Solace for what it is best at
 (real-time routing, fan-out, guaranteed delivery), and move the "subscription logic" into the
 database layer (RisingWave materialized views). RisingWave connects directly to Solace queues
 via the native Solace source connector (SMF protocol), consuming messages with full envelope
-metadata (topic, sender timestamp) preserved as first-class columns.
+metadata (topic, connector processing timestamp) preserved as first-class columns.
 
 ---
 
@@ -36,23 +36,27 @@ Fleet vehicles
      ▼
 Solace Platform Event Broker   port 55554 (SMF)
   VPN: streaming-poc
-  Queue: rw-ingest      ← subscriptions: fleet/telemetry/>, fleet/commands/>
-  Queue: events-ingest  ← subscription: fleet/events/>
+  Queue: rw-ingest        ← subscription: fleet/telemetry/>  (DMQ: dlq-telemetry)
+  Queue: events-ingest   ← subscription: fleet/events/>     (DMQ: dlq-events)
+  Queue: commands-ingest ← subscription: fleet/commands/>   (DMQ: dlq-commands)
      │
      │  native Solace source connector (SMF protocol, checkpoint ACK)
      │  — no proxy, no webhook — direct queue-to-SOURCE binding
      ▼
 RisingWave Streaming SQL Engine   port 4566 (Postgres wire protocol)
   SOURCE: fleet_ingest_telemetry  ← rw-ingest queue
-    columns: data JSONB
-    metadata: _rw_solace_destination VARCHAR, _rw_solace_timestamp VARCHAR
+    columns: vehicle_id, speed, fuel_level, engine_temp, tire_pressure, battery_voltage, latitude, longitude
+    metadata: _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
   SOURCE: fleet_ingest_events     ← events-ingest queue
-    columns: data JSONB
-    metadata: _rw_solace_destination VARCHAR, _rw_solace_timestamp VARCHAR
-  Routing MVs (extract typed columns from JSONB, filter by metadata columns):
-    fleet_telemetry_raw           → FROM fleet_ingest_telemetry WHERE _rw_solace_destination LIKE 'fleet/telemetry/%'
-    fleet_commands_raw            → FROM fleet_ingest_telemetry WHERE _rw_solace_destination LIKE 'fleet/commands/%'
-    fleet_events_raw              → FROM fleet_ingest_events   WHERE _rw_solace_destination LIKE 'fleet/events/%'
+    columns: vehicle_id, event_type, severity, description, payload JSONB
+    metadata: _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  SOURCE: fleet_ingest_commands   ← commands-ingest queue
+    columns: vehicle_id, command_type, parameters JSONB, issued_by
+    metadata: _rw_solace_destination VARCHAR, _rw_solace_timestamp TIMESTAMPTZ
+  Routing MVs (alias metadata columns, typed columns already in SOURCE):
+    fleet_telemetry_raw           → FROM fleet_ingest_telemetry (all rows; _rw_solace_timestamp AS recorded_at)
+    fleet_events_raw              → FROM fleet_ingest_events   (_rw_solace_timestamp AS occurred_at)
+    fleet_commands_raw            → FROM fleet_ingest_commands (_rw_solace_timestamp AS issued_at)
   EP-generated MVs (one per event version in Fleet Operations domain):
     vehicle_speed                 → WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/speed'
     vehicle_fuel_level            → WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/fuel_level'
@@ -107,12 +111,14 @@ connector. No proxy, no webhook, no HTTP intermediary. Each SOURCE binds to a So
 queue and consumes messages with full envelope metadata preserved:
 
 - `_rw_solace_destination` — the Solace destination topic (e.g. `fleet/telemetry/vehicle_001/metrics`)
-- `_rw_solace_timestamp` — the sender timestamp
+- `_rw_solace_timestamp` — connector processing time (`SystemTime::now()` fallback; the Python
+  Messaging API has no sender-timestamp setter and `get_rcv_timestamp()` returns `NotFound`
+  for guaranteed queue messages)
 
 These appear as first-class columns on every SOURCE. This keeps generator payloads clean —
 producers publish pure IoT data with no transport metadata embedded. Routing and timestamp
 logic lives entirely in the RisingWave SOURCE + MV layer, not in any external delivery
-component. Routing MVs alias `_rw_solace_destination AS solace_topic` and cast
+component. Routing MVs alias `_rw_solace_destination AS solace_topic` and
 `_rw_solace_timestamp` as `recorded_at` / `occurred_at` / `issued_at` so all downstream
 analytics MVs require zero changes.
 
@@ -124,23 +130,24 @@ webhook endpoint. The native connector eliminates that component entirely, remov
 HTTP hop, simplifying deployment, and enabling back-pressure-aware consumption with
 proper Solace ACK semantics.
 
-### 2. Two SOURCEs with JSONB routing MVs
+### 2. Three SOURCEs with flat-schema typed columns
 
-Two RisingWave SOURCEs bind to separate Solace queues:
-- `fleet_ingest_telemetry` — `rw-ingest` queue (telemetry + commands, high volume)
+Three RisingWave SOURCEs bind to separate Solace queues — one per message schema:
+- `fleet_ingest_telemetry` — `rw-ingest` queue (telemetry, high volume)
 - `fleet_ingest_events` — `events-ingest` queue (alerts, lower volume)
+- `fleet_ingest_commands` — `commands-ingest` queue (commands, low volume)
 
 Separate queues prevent head-of-line blocking: alert messages are never delayed by a
-telemetry backlog. Each SOURCE has a `data JSONB` column plus Solace metadata columns.
+telemetry backlog, and commands (different schema) never share columns with telemetry.
+Each SOURCE declares typed columns matching its queue's flat JSON payload — no `data JSONB`
+column or JSONB extraction needed at any layer.
 
-The routing layer (three MVs) extracts typed columns from the JSONB body and filters by
-`_rw_solace_destination`. Each routing MV reads from its appropriate SOURCE:
-- `fleet_telemetry_raw` and `fleet_commands_raw` read from `fleet_ingest_telemetry`
-- `fleet_events_raw` reads from `fleet_ingest_events`
+The routing MVs alias metadata columns:
+- `fleet_telemetry_raw` — `_rw_solace_timestamp AS recorded_at`
+- `fleet_events_raw` — `_rw_solace_timestamp AS occurred_at`
+- `fleet_commands_raw` — `_rw_solace_timestamp AS issued_at`
 
-All analytics MVs above them see ordinary typed columns and are unaffected by the ingest
-format. This isolates the JSONB extraction concern to one layer, keeping analytics MVs
-clean and readable.
+All analytics MVs above them see ordinary typed columns with clean aliases.
 
 ### 3. Custom RisingWave binary — Solace connector not yet upstream
 
