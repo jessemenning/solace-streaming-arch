@@ -15,6 +15,10 @@ config/risingwave/init.sql
 # Custom RisingWave build context (binary is ~700 MB — never commit)
 risingwave-solace/risingwave-stripped
 
+# Claude Code session artifacts
+.claude/plans/
+.claude/sessions/
+
 # Environment — never commit live credentials
 .env
 .env.local
