@@ -25,3 +25,5 @@ risingwave-solace/risingwave-stripped
 docs/streaming-platform-comparison.docx
 docs/streaming-platform-comparison.docx:Zone.Identifier
 docs/trymetab.mhtml
+backfill/BARRIER_FLUSH_IMPL_PROMPT.md
+docs/replay-vs-risingwave-agent-comparison.md

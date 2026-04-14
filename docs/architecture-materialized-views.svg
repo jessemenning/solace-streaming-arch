@@ -136,14 +136,14 @@
 
   <rect x="338" y="334" width="230" height="22" rx="4" fill="#093B5F" opacity="0.8"/>
   <circle cx="352" cy="345" r="4" fill="#FCA829"/>
-  <text x="362" y="349" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">One MV per event version in EP</text>
+  <text x="362" y="349" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">vehicle_telemetry  fleet/telemetry/%/metrics</text>
 
   <rect x="338" y="360" width="230" height="22" rx="4" fill="#093B5F" opacity="0.8"/>
   <circle cx="352" cy="371" r="4" fill="#FCA829"/>
-  <text x="362" y="375" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">vehicle_speed · vehicle_alert_high …</text>
+  <text x="362" y="375" font-family="'Courier New', 'Space Mono', monospace" font-size="10" fill="#C2F7FF">vehicle_alert  fleet/events/%/alerts/%</text>
 
   <rect x="338" y="386" width="230" height="14" rx="4" fill="#FCA829" opacity="0.1" stroke="#FCA829" stroke-width="0.8"/>
-  <text x="453" y="397" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#FCA829" text-anchor="middle">schema-derived columns  ·  EP topic → SQL LIKE</text>
+  <text x="453" y="397" font-family="'Courier New', 'Space Mono', monospace" font-size="9" fill="#FCA829" text-anchor="middle">vehicle_command  fleet/commands/%/%</text>
 
   <!-- Arrow Tier 2 → Tier 3 (Dynamic DDL) -->
   <line x1="453" y1="404" x2="453" y2="424" stroke="#FCA829" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowOrange)"/>

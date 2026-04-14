@@ -28,12 +28,10 @@ fleet_ingest_events     (Solace SOURCE — events-ingest queue; flat typed colum
 fleet_ingest_commands   (Solace SOURCE — commands-ingest queue; flat typed columns: vehicle_id, command_type, …)
   └── fleet_commands_raw   (static routing MV — all command rows; aliases metadata columns)
         ↓
-EP-generated MVs (one per event version — read from routing MVs):
-  ├── vehicle_speed           (LIKE 'fleet/telemetry/%/metrics/speed')
-  ├── vehicle_fuel_level      (LIKE 'fleet/telemetry/%/metrics/fuel_level')
-  ├── vehicle_engine_temp     (LIKE 'fleet/telemetry/%/metrics/engine_temp')
-  ├── vehicle_alert_high      (LIKE 'fleet/events/%/alerts/high')
-  └── … (one MV per event version in "Fleet Operations" domain)
+EP-generated MVs (one per event version in "Fleet Operations" domain — read from routing MVs):
+  ├── vehicle_telemetry   (LIKE 'fleet/telemetry/%/metrics')
+  ├── vehicle_alert       (LIKE 'fleet/events/%/alerts/%')
+  └── vehicle_command     (LIKE 'fleet/commands/%/%')
         ↓
 Analytics MVs (static — build on routing MVs):
   ├── vehicle_speeds          (speed messages only)
@@ -61,7 +59,7 @@ Each EP event version carries a `deliveryDescriptor` with `addressLevels`. The s
 | `literal` (e.g. `"speed"`) | exact string (e.g. `speed`) |
 | `variable` (e.g. `"vehicle_id"`) | `%` wildcard |
 
-Example: the `vehicle-speed` event version has address levels `fleet / telemetry / {vehicle_id} / metrics / speed`, which becomes `WHERE solace_topic LIKE 'fleet/telemetry/%/metrics/speed'`.
+Example: the `vehicle-alert` event version has address levels `fleet / events / {vehicle_id} / alerts / {severity}`, which becomes `WHERE solace_topic LIKE 'fleet/events/%/alerts/%'`.
 
 The script also reads the linked JSON Schema to select only the columns relevant to each event type, keeping each MV lean.
 
