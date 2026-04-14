@@ -1,8 +1,7 @@
 # Connector-Side Backfill Design
 
-Pseudocode for the native Solace connector in `~/risingwave/` (branch `feat/solace-source-connector`).
-These changes are **not yet implemented** -- they document the target behavior for making the
-connector backfill-aware.
+Design reference for the native Solace connector in `~/risingwave/` (branch `feat/solace-source-connector`).
+All changes described here are **fully implemented** in `src/connector/src/source/solace/source/reader.rs`.
 
 ## Key code locations
 

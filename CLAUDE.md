@@ -124,6 +124,21 @@ psql -h localhost -p 4566 -U root -d dev -f ~/solace-streaming-arch/config/risin
 
 Note: use `up -d` (not `restart`) after a rebuild — `restart` reuses the old container image.
 
+**To run Solace connector unit tests:**
+```bash
+cd ~/risingwave
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+export PROTOC=/usr/bin/protoc
+export SOLACE_USE_SYSTEM_SSL=1
+export OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
+export OPENSSL_INCLUDE_DIR=/usr/include
+export OPENSSL_STATIC=0
+RUSTFLAGS="-Ctarget-feature=+avx2 --cfg tokio_unstable -Zhigher-ranked-assumptions -Clink-arg=-fuse-ld=lld -Clink-arg=-Wl,--no-rosegment -Clink-arg=-Wl,--no-as-needed" \
+cargo test -p risingwave_connector --features source-solace -- solace
+```
+
+Note: `--features source-solace` is required — without it, the Solace connector is not compiled and 0 tests run. The SSL env vars are required when the feature is active.
+
 **Key code locations in `~/risingwave/`:**
 
 - Connector source: `src/connector/src/source/solace/`
@@ -283,9 +298,19 @@ LITELLM_BASE_URL=          # optional — leave blank to call Anthropic directly
 SOLACE_CLOUD_TOKEN=        # Solace Cloud API token for Event Portal catalog
 ```
 
-### Re-initialize RisingWave schema only (idempotent)
+### Re-initialize RisingWave schema (after restart or rebuild)
+
+Use the demo script — it starts a `rw-init` sidecar container that handles initialization properly and waits for cluster recovery. Raw `psql -f init.sql` can fail if streaming jobs are still in INITIAL state:
+
 ```bash
-psql -h localhost -p 4566 -U root -d dev -f config/risingwave/init.sql
+./demo/run_demo.sh --skip-build
+```
+
+The `--skip-build` flag skips the Docker image build step and goes straight to starting services and applying the schema. Data starts flowing automatically.
+
+For non-interactive schema reset only (if stack is already running but schema is missing):
+```bash
+docker compose restart rw-init
 ```
 
 ### Stop the stack (wipes volumes — clean slate)
