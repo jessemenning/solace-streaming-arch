@@ -494,3 +494,14 @@ See `backfill/CONNECTOR_DESIGN.md` for the original design spec.
 | `ep-setup` exits with code 2 | EP connectivity check failed (bad token or network) | Check token validity and network; exit 2 is intentional (graceful fallback, not a fatal error) |
 | Fleet Agent chat shows "Connection error: network error" | Anthropic API error before first SSE byte (budget exceeded or bad key) | Check browser console for HTTP status; check server logs for `BadRequestError`/`budget_exceeded`; add Anthropic credits or verify `ANTHROPIC_API_KEY` in `.env` |
 | Fleet Agent chat shows "API budget limit reached" | Anthropic account billing limit hit | Add credits at https://console.anthropic.com; the error is surfaced in the chat UI rather than silently closing the connection |
+
+---
+
+## Porting to a New Use Case
+
+See [`docs/new-project-template.md`](docs/new-project-template.md) for the
+recommended prompt and checklist when creating a new Solace + RisingWave
+streaming project from this template.
+
+For lessons learned from the FAA FDPS port, see
+`~/faa-streaming-arch/docs/lessons-learned.md`.
